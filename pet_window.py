@@ -1,7 +1,7 @@
 import os
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtCore import Qt, QPoint
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QApplication, QSystemTrayIcon, QMenu,
 )
@@ -14,6 +14,7 @@ from qfluentwidgets.components.widgets.menu import DWMMenu
 from live2d_widget import Live2DWidget
 from model_manager import ModelManager
 from settings_window import SettingsWindow
+from radial_menu import RadialMenu
 
 
 class PetWindow(QWidget):
@@ -30,6 +31,7 @@ class PetWindow(QWidget):
         self._tray_icon = None
         self._settings_window = None
         self._cfg = config_manager
+        self._radial_menu = None
 
         self._init_ui()
         self._init_tray()
@@ -57,6 +59,7 @@ class PetWindow(QWidget):
         self._live2d_widget.set_live2d_module(self._live2d)
         self._live2d_widget.set_window_drag_callback(self._on_drag)
         self._live2d_widget.set_click_callback(self._on_click)
+        self._live2d_widget.set_right_click_callback(self._on_right_click)
         self._live2d_widget.set_fps(self._fps)
         layout.addWidget(self._live2d_widget)
 
@@ -153,6 +156,65 @@ class PetWindow(QWidget):
         self.move(self.x() + dx, self.y() + dy)
 
     def _on_click(self):
+        if self._radial_menu and self._radial_menu.isVisible():
+            self._radial_menu.dismiss()
+
+    def _on_right_click(self, gx: int, gy: int):
+        if self._radial_menu is not None and self._radial_menu.isVisible():
+            self._radial_menu.dismiss()
+            return
+
+        self._radial_menu = RadialMenu()
+        self._radial_menu.set_animation_fps(self._fps)
+        self._radial_menu.closed.connect(lambda: setattr(self, '_radial_menu', None))
+
+        self._radial_menu.add_item(
+            "", "Chat", QColor(138, 43, 226),
+            glyph="\U0001F4AC",
+            on_click=self._on_radial_chat,
+        )
+        self._radial_menu.add_item(
+            "", "Costume", QColor(220, 50, 120),
+            glyph="\U0001F457",
+            on_click=self._on_radial_costume,
+        )
+        self._radial_menu.add_item(
+            "", "Motion", QColor(30, 144, 255),
+            glyph="\U0001F3AC",
+            on_click=self._on_radial_motion,
+        )
+        self._radial_menu.add_item(
+            "", "Pixel", QColor(34, 180, 140),
+            glyph="\U0001F47E",
+            on_click=self._on_radial_pixel,
+        )
+
+        self._radial_menu.show_at(QPoint(gx, gy))
+
+    def _on_radial_chat(self):
+        pass
+
+    def _on_radial_costume(self):
+        self._open_settings()
+
+    def _on_radial_motion(self):
+        model = self._live2d_widget.model
+        if model is None:
+            return
+        try:
+            model.StartRandomMotion(
+                priority=self._live2d.MotionPriority.FORCE,
+                onFinishMotionHandler=self._on_motion_finished,
+            )
+        except Exception:
+            pass
+
+    def _on_motion_finished(self):
+        model = self._live2d_widget.model
+        if model is not None:
+            model.ClearMotions()
+
+    def _on_radial_pixel(self):
         pass
 
     def _toggle_visible(self):
