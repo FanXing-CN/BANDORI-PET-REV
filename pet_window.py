@@ -18,7 +18,8 @@ from settings_window import SettingsWindow
 
 class PetWindow(QWidget):
     def __init__(self, live2d_module, model_manager=None,
-                 character="", costume="", fps=120, opacity=1.0):
+                 character="", costume="", fps=120, opacity=1.0,
+                 config_manager=None):
         super().__init__()
         self._live2d = live2d_module
         self._model_manager = model_manager or ModelManager()
@@ -28,6 +29,7 @@ class PetWindow(QWidget):
         self._opacity = opacity
         self._tray_icon = None
         self._settings_window = None
+        self._cfg = config_manager
 
         self._init_ui()
         self._init_tray()
@@ -123,6 +125,7 @@ class PetWindow(QWidget):
         self._current_costume = costume
         self._live2d_widget.set_model_path(path)
         self._update_tooltip()
+        self._save_config()
 
     def _apply_settings(self, data: dict):
         if "fps" in data:
@@ -131,6 +134,7 @@ class PetWindow(QWidget):
             self.set_opacity(data["opacity"])
         if "dark_theme" in data:
             setTheme(Theme.DARK if data["dark_theme"] else Theme.LIGHT)
+        self._save_config()
 
     def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
@@ -180,6 +184,20 @@ class PetWindow(QWidget):
     def set_opacity(self, value: float):
         self._opacity = value
         self.setWindowOpacity(value)
+
+    def _save_config(self):
+        if self._cfg:
+            from qfluentwidgets import isDarkTheme
+            self._cfg.set("character", self._current_char)
+            self._cfg.set("costume", self._current_costume)
+            self._cfg.set("fps", self._fps)
+            self._cfg.set("opacity", self._opacity)
+            self._cfg.set("dark_theme", isDarkTheme())
+            self._cfg.set("window_x", self.x())
+            self._cfg.set("window_y", self.y())
+            self._cfg.set("window_width", self.width())
+            self._cfg.set("window_height", self.height())
+            self._cfg.save()
 
     def _quit(self):
         self._tray_icon.hide()

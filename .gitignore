@@ -2,3 +2,5 @@ AGENTS.md
 __pycache__/
 models/
 third_party/
+config.json
+data.db
