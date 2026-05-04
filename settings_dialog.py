@@ -1,6 +1,7 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QWidget
 
+from i18n_manager import tr as _tr
 from qfluentwidgets import (
     Dialog, ComboBox, PushButton, PrimaryPushButton,
     StrongBodyLabel, FluentIcon,
@@ -15,12 +16,12 @@ class ModelSelectDialog(Dialog):
         self._model_manager = model_manager
         self._char_map = {}
 
-        self.titleLabel = StrongBodyLabel(self.tr("Select Character Model"), self)
+        self.titleLabel = StrongBodyLabel(_tr("ModelSelectDialog.title"), self)
 
         self.char_combo = ComboBox(self)
-        self.char_combo.setPlaceholderText(self.tr("Choose character..."))
+        self.char_combo.setPlaceholderText(_tr("ModelSelectDialog.char_placeholder"))
         self.costume_combo = ComboBox(self)
-        self.costume_combo.setPlaceholderText(self.tr("Choose costume..."))
+        self.costume_combo.setPlaceholderText(_tr("ModelSelectDialog.costume_placeholder"))
 
         self._populate_characters()
 
@@ -39,8 +40,8 @@ class ModelSelectDialog(Dialog):
 
         self.char_combo.currentTextChanged.connect(self._on_char_changed)
 
-        self.cancel_btn = PushButton(FluentIcon.CLOSE, self.tr("Cancel"), self)
-        self.ok_btn = PrimaryPushButton(FluentIcon.ACCEPT, self.tr("Apply"), self)
+        self.cancel_btn = PushButton(FluentIcon.CLOSE, _tr("ModelSelectDialog.cancel"), self)
+        self.ok_btn = PrimaryPushButton(FluentIcon.ACCEPT, _tr("ModelSelectDialog.apply"), self)
 
         self.cancel_btn.clicked.connect(self.reject)
         self.ok_btn.clicked.connect(self._on_apply)
@@ -51,11 +52,11 @@ class ModelSelectDialog(Dialog):
         layout.setSpacing(12)
 
         row1 = QHBoxLayout()
-        row1.addWidget(QLabel(self.tr("Character:")))
+        row1.addWidget(QLabel(_tr("ModelSelectDialog.char_label")))
         row1.addWidget(self.char_combo, 1)
 
         row2 = QHBoxLayout()
-        row2.addWidget(QLabel(self.tr("Costume:")))
+        row2.addWidget(QLabel(_tr("ModelSelectDialog.costume_label")))
         row2.addWidget(self.costume_combo, 1)
 
         layout.addLayout(row1)

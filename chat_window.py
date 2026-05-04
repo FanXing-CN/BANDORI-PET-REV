@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QGraphicsColorizeEffect,
 )
 
+from i18n_manager import tr as _tr
 from qfluentwidgets import BodyLabel, StrongBodyLabel, FluentIcon, isDarkTheme
 from qfluentwidgets.common.config import qconfig
 
@@ -171,7 +172,7 @@ class ConversationHistoryRow(QWidget):
         delete_btn.setText("×")
         delete_btn.setFixedSize(24, 24)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        delete_btn.setToolTip(self.tr("Delete conversation"))
+        delete_btn.setToolTip(_tr("ChatWindow.delete_conv"))
         delete_btn.clicked.connect(self._emit_delete)
         layout.addWidget(delete_btn)
 
@@ -253,7 +254,7 @@ class MessageBubble(QWidget):
         super().__init__(parent)
         self._text = text
         self._role = role
-        self._author = author or ("You" if role == "user" else "Assistant")
+        self._author = author or (_tr("ChatWindow.you") if role == "user" else _tr("ChatWindow.you"))
         self._created_at = created_at
         self._avatar_color = avatar_color
         self._streaming = False
@@ -354,7 +355,7 @@ class MessageBubble(QWidget):
 
     def _tick_typing(self):
         self._dot_step = (self._dot_step + 1) % 4
-        self._stream_label.setText(self.tr("streaming") + "." * self._dot_step)
+        self._stream_label.setText(_tr("ChatWindow.streaming") + "." * self._dot_step)
 
     def apply_theme(self):
         dark = isDarkTheme()
@@ -428,7 +429,7 @@ class ChatWindow(QWidget):
         from database_manager import DatabaseManager
         self._db = DatabaseManager()
 
-        self.setWindowTitle(f"Chat - {self._display_name}")
+        self.setWindowTitle(_tr("ChatWindow.title", name=self._display_name))
         self.setMinimumSize(360, 520)
         self.resize(420, 620)
 
@@ -509,7 +510,7 @@ class ChatWindow(QWidget):
         avatar.setFixedSize(34, 34)
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setCursor(Qt.CursorShape.PointingHandCursor)
-        avatar.setToolTip(self.tr("Conversation history"))
+        avatar.setToolTip(_tr("ChatWindow.history_tooltip"))
         avatar.mousePressEvent = self._on_title_avatar_pressed
         layout.addWidget(avatar)
 
@@ -518,7 +519,7 @@ class ChatWindow(QWidget):
         title_stack.setSpacing(0)
         title = StrongBodyLabel(self._display_name, bar)
         title.setObjectName("ChatTitle")
-        subtitle = BodyLabel(self.tr("AI chat | Enter to send, Shift+Enter for newline"), bar)
+        subtitle = BodyLabel(_tr("ChatWindow.subtitle"), bar)
         subtitle.setObjectName("ChatSubtitle")
         title_stack.addWidget(title)
         title_stack.addWidget(subtitle)
@@ -527,7 +528,7 @@ class ChatWindow(QWidget):
 
         new_btn = IconButton(FluentIcon.ADD, bar)
         new_btn.setFixedSize(32, 32)
-        new_btn.setToolTip(self.tr("New Chat"))
+        new_btn.setToolTip(_tr("ChatWindow.new_chat"))
         new_btn.clicked.connect(self._new_conversation)
         layout.addWidget(new_btn)
 
@@ -574,7 +575,7 @@ class ChatWindow(QWidget):
         hint_row.setSpacing(6)
         self._status_dot = QLabel("", area)
         self._status_dot.setFixedSize(7, 7)
-        self._composer_hint = QLabel(self.tr("Ready"), area)
+        self._composer_hint = QLabel(_tr("ChatWindow.ready"), area)
         hint_font = QFont()
         hint_font.setPointSize(8)
         self._composer_hint.setFont(hint_font)
@@ -590,7 +591,7 @@ class ChatWindow(QWidget):
         layout.setSpacing(8)
 
         self._input = QTextEdit()
-        self._input.setPlaceholderText(self.tr("Message your Bandori pet..."))
+        self._input.setPlaceholderText(_tr("ChatWindow.input_placeholder"))
         self._input.setAcceptRichText(False)
         self._input.setFixedHeight(58)
         self._input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -604,7 +605,7 @@ class ChatWindow(QWidget):
 
         self._send_btn = IconButton(FluentIcon.SEND, self._composer, primary=True)
         self._send_btn.setFixedSize(42, 42)
-        self._send_btn.setToolTip(self.tr("Send"))
+        self._send_btn.setToolTip(_tr("ChatWindow.send_tooltip"))
         self._send_btn.clicked.connect(self._send_message)
         layout.addWidget(self._send_btn, 0, Qt.AlignmentFlag.AlignBottom)
 
@@ -750,7 +751,7 @@ class ChatWindow(QWidget):
                 preview = msg["content"].strip().replace("\n", " ")
                 break
         if not preview:
-            preview = conv.get("title") or self.tr("Empty conversation")
+            preview = conv.get("title") or _tr("ChatWindow.empty_conv")
         if len(preview) > 28:
             preview = preview[:28] + "..."
         created_at = conv.get("created_at", "")
@@ -799,13 +800,13 @@ class ChatWindow(QWidget):
             }}
         """)
 
-        title = menu.addAction(self.tr("Conversation history"))
+        title = menu.addAction(_tr("ChatWindow.history_title"))
         title.setEnabled(False)
         menu.addSeparator()
 
         conversations = self._db.get_conversations(self._character)
         if not conversations:
-            empty = menu.addAction(self.tr("No conversations yet"))
+            empty = menu.addAction(_tr("ChatWindow.no_convs"))
             empty.setEnabled(False)
         else:
             for conv in conversations:
@@ -822,7 +823,7 @@ class ChatWindow(QWidget):
                 menu.addAction(action)
 
         menu.addSeparator()
-        new_action = menu.addAction(self.tr("New conversation"))
+        new_action = menu.addAction(_tr("ChatWindow.new_conversation"))
         new_action.triggered.connect(self._new_conversation)
 
         pos = self._title_avatar.mapToGlobal(self._title_avatar.rect().bottomLeft())
@@ -876,7 +877,7 @@ class ChatWindow(QWidget):
         self._input.setEnabled(not busy)
         self._send_btn.setEnabled(not busy)
         self._new_btn.setEnabled(not busy)
-        self._composer_hint.setText(self.tr("Streaming response...") if busy else self.tr("Ready"))
+        self._composer_hint.setText(_tr("ChatWindow.streaming_response") if busy else _tr("ChatWindow.ready"))
         dot = _TEAMS_ACCENT if busy else _TELEGRAM_ACCENT
         self._status_dot.setStyleSheet(f"background: {dot}; border-radius: 3px;")
 
@@ -940,7 +941,7 @@ class ChatWindow(QWidget):
         if stretch:
             del stretch
         for m in messages:
-            author = self._user_name if m["role"] == "user" and self._user_name else self.tr("You") if m["role"] == "user" else self._display_name
+            author = self._user_name if m["role"] == "user" and self._user_name else _tr("ChatWindow.you") if m["role"] == "user" else self._display_name
             avatar = self._user_avatar_color if m["role"] == "user" else ""
             bubble = MessageBubble(m["content"], m["role"], author, m.get("created_at", ""), avatar_color=avatar)
             self._msg_layout.addWidget(bubble)
@@ -958,7 +959,7 @@ class ChatWindow(QWidget):
 
         if not api_url or not api_key or not model_id:
             bubble = MessageBubble(
-                self.tr("Please configure LLM API settings first."),
+                _tr("ChatWindow.no_llm_config"),
                 "assistant",
                 self._display_name,
             )
@@ -971,7 +972,7 @@ class ChatWindow(QWidget):
         self._stream_buffer = ""
         self._visible_stream_text = ""
 
-        user_bubble = MessageBubble(text, "user", self._user_name or self.tr("You"), avatar_color=self._user_avatar_color)
+        user_bubble = MessageBubble(text, "user", self._user_name or _tr("ChatWindow.you"), avatar_color=self._user_avatar_color)
         self._msg_layout.insertWidget(self._msg_layout.count() - 1, user_bubble)
 
         assist_bubble = MessageBubble("", "assistant", self._display_name)

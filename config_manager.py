@@ -7,6 +7,7 @@ CONFIG_PATH = BASE_DIR / "config.json"
 DEFAULTS = {
     "character": "",
     "costume": "",
+    "language": "",
     "fps": 120,
     "opacity": 1.0,
     "dark_theme": False,

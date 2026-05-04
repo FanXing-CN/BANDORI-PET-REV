@@ -16,10 +16,16 @@ import live2d.v2 as live2d
 from platform_patch import PatchedPlatformManager
 from model_manager import ModelManager
 from config_manager import ConfigManager
+from i18n_manager import set_language, detect_system_language
 
 
 def main():
     cfg = ConfigManager()
+
+    lang = cfg.get("language", "")
+    if not lang:
+        lang = detect_system_language()
+    set_language(lang)
 
     live2d.init()
 
@@ -48,7 +54,10 @@ def main():
             char = mgr.characters[0]
             costume = mgr.get_default_costume(char)
 
+    from i18n_manager import current_language
+
     def save_config():
+        cfg.set("language", current_language())
         pw = pet_window_ref.get("window")
         if pw:
             cfg.set("character", pw._current_char)

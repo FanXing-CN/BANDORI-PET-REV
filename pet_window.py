@@ -16,6 +16,7 @@ from qfluentwidgets import (
 )
 from qfluentwidgets.components.widgets.menu import DWMMenu
 
+from i18n_manager import tr as _tr
 from live2d_widget import Live2DWidget
 from model_manager import ModelManager
 from settings_window import SettingsWindow
@@ -177,29 +178,29 @@ class PetWindow(QWidget):
         else:
             self._tray_icon.setIcon(QIcon())
 
-        self._tray_icon.setToolTip("Bandori Desktop Pet")
+        self._tray_icon.setToolTip(_tr("PetWindow.tray_tooltip"))
 
         menu = QMenu()
 
-        show_action = menu.addAction(self.tr("Show/Hide"))
+        show_action = menu.addAction(_tr("PetWindow.tray_show_hide"))
         show_action.triggered.connect(self._toggle_visible)
 
-        chat_action = menu.addAction(self.tr("Chat..."))
+        chat_action = menu.addAction(_tr("PetWindow.tray_chat"))
         chat_action.triggered.connect(self._open_chat)
 
-        settings_action = menu.addAction(self.tr("Settings..."))
+        settings_action = menu.addAction(_tr("PetWindow.tray_settings"))
         settings_action.triggered.connect(self._open_settings)
 
         menu.addSeparator()
 
-        opacity_menu = menu.addMenu(self.tr("Opacity"))
+        opacity_menu = menu.addMenu(_tr("PetWindow.tray_opacity"))
         for pct in [100, 80, 60, 40, 20]:
-            act = opacity_menu.addAction(f"{pct}%")
+            act = opacity_menu.addAction(_tr("PetWindow.opacity_pct", pct=pct))
             act.triggered.connect(lambda checked, v=pct: self.set_opacity(v / 100.0))
 
         menu.addSeparator()
 
-        exit_action = menu.addAction(self.tr("Exit"))
+        exit_action = menu.addAction(_tr("PetWindow.tray_exit"))
         exit_action.triggered.connect(self._quit)
 
         self._tray_icon.setContextMenu(menu)
@@ -250,7 +251,7 @@ class PetWindow(QWidget):
             self._current_char, self._current_costume
         )
         self._tray_icon.setToolTip(
-            f"Bandori Desktop Pet - {display} ({costume_name})"
+            _tr("PetWindow.tray_tooltip_with_model", display=display, costume=costume_name)
         )
 
     def _on_drag(self, dx: int, dy: int):
@@ -272,22 +273,22 @@ class PetWindow(QWidget):
         self._radial_menu.closed.connect(lambda: setattr(self, '_radial_menu', None))
 
         self._radial_menu.add_item(
-            "", "Chat", QColor(138, 43, 226),
+            "", _tr("PetWindow.radial_chat"), QColor(138, 43, 226),
             glyph="\U0001F4AC",
             on_click=self._on_radial_chat,
         )
         self._radial_menu.add_item(
-            "", "Costume", QColor(220, 50, 120),
+            "", _tr("PetWindow.radial_costume"), QColor(220, 50, 120),
             glyph="\U0001F457",
             on_click=self._on_radial_costume,
         )
         self._radial_menu.add_item(
-            "", "Motion", QColor(30, 144, 255),
+            "", _tr("PetWindow.radial_motion"), QColor(30, 144, 255),
             glyph="\U0001F3AC",
             on_click=self._on_radial_motion,
         )
         self._radial_menu.add_item(
-            "", "Pixel", QColor(34, 180, 140),
+            "", _tr("PetWindow.radial_pixel"), QColor(34, 180, 140),
             glyph="\U0001F47E",
             on_click=self._on_radial_pixel,
         )
@@ -531,7 +532,9 @@ class PetWindow(QWidget):
 
     def _save_config(self):
         if self._cfg:
+            from i18n_manager import current_language
             from qfluentwidgets import isDarkTheme
+            self._cfg.set("language", current_language())
             self._cfg.set("character", self._current_char)
             self._cfg.set("costume", self._current_costume)
             self._cfg.set("fps", self._fps)
@@ -553,27 +556,27 @@ class PetWindow(QWidget):
 
         menu.addAction(
             FluentIcon.SETTING,
-            self.tr("Settings..."),
+            _tr("PetWindow.menu_settings"),
             triggered=self._open_settings,
         )
         menu.addAction(
             FluentIcon.CHAT,
-            self.tr("Chat..."),
+            _tr("PetWindow.menu_chat"),
             triggered=self._open_chat,
         )
         menu.addSeparator()
 
-        opacity_menu = DWMMenu(self.tr("Opacity"), menu)
+        opacity_menu = DWMMenu(_tr("PetWindow.menu_opacity"), menu)
         for pct in [100, 80, 60, 40, 20]:
             opacity_menu.addAction(
-                f"{pct}%",
+                _tr("PetWindow.opacity_pct", pct=pct),
                 triggered=lambda checked, v=pct: self.set_opacity(v / 100.0),
             )
         menu.addMenu(opacity_menu)
 
         menu.addSeparator()
 
-        theme_text = self.tr("Light Theme") if isDarkTheme() else self.tr("Dark Theme")
+        theme_text = _tr("PetWindow.menu_light_theme") if isDarkTheme() else _tr("PetWindow.menu_dark_theme")
         menu.addAction(
             FluentIcon.CONTRAST,
             theme_text,
@@ -583,12 +586,12 @@ class PetWindow(QWidget):
 
         menu.addAction(
             FluentIcon.HIDE,
-            self.tr("Hide"),
+            _tr("PetWindow.menu_hide"),
             triggered=self.hide,
         )
         menu.addAction(
             FluentIcon.CLOSE,
-            self.tr("Exit"),
+            _tr("PetWindow.menu_exit"),
             triggered=self._quit,
         )
 

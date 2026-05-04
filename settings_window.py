@@ -9,10 +9,12 @@ from PySide6.QtWidgets import (
 from qfluentwidgets import (
     CardWidget, PushButton, PrimaryPushButton,
     BodyLabel, StrongBodyLabel, TitleLabel, SubtitleLabel,
-    FluentIcon, Slider, SwitchButton, ScrollArea,
+    FluentIcon, Slider, SwitchButton, ScrollArea, ComboBox,
     setTheme, Theme, isDarkTheme, InfoBar, InfoBarPosition,
 )
 from qfluentwidgets.common.config import qconfig
+
+from i18n_manager import tr as _tr, set_language, available_languages, current_language
 
 import json
 
@@ -46,7 +48,7 @@ class CharacterCard(CardWidget):
         name_label.setWordWrap(True)
         layout.addWidget(name_label)
 
-        self._count_label = BodyLabel(f"{costume_count} costumes", self)
+        self._count_label = BodyLabel(_tr("costume_count", count=costume_count), self)
         self._count_label.setStyleSheet(self._count_label_style())
         layout.addWidget(self._count_label)
 
@@ -243,7 +245,7 @@ class SettingsWindow(QWidget):
         self._nav_buttons: dict[str, NavButton] = {}
         self._current_page = "characters"
 
-        self.setWindowTitle("Bandori Desktop Pet - Settings")
+        self.setWindowTitle(_tr("SettingsWindow.title"))
         self.setMinimumSize(1050, 650)
         self.resize(1050, 650)
 
@@ -262,10 +264,18 @@ class SettingsWindow(QWidget):
         if self._start_on_costumes:
             self._populate_costumes(self._current_char)
             display = self._model_manager.get_display_name(self._current_char)
-            self._costume_title.setText(f"Costumes - {display}")
-            self._costume_subtitle.setText(f"Select a costume for {display}")
+            self._costume_title.setText(_tr("SettingsWindow.costumes_title", display=display))
+            self._costume_subtitle.setText(_tr("SettingsWindow.costume_subtitle", display=display))
             self._char_page.hide()
             self._costume_page.show()
+
+    def _on_language_changed(self, index: int):
+        lang = self._lang_combo.itemData(index)
+        if lang and lang != current_language():
+            set_language(lang)
+            if self._cfg:
+                self._cfg.set("language", lang)
+                self._cfg.save()
 
     def closeEvent(self, event):
         if not self._launched:
@@ -371,40 +381,46 @@ class SettingsWindow(QWidget):
 
         main_layout.addWidget(right_area, 1)
 
+    def _update_sidebar_style(self):
+        if not hasattr(self, '_sidebar'):
+            return
+        dark = isDarkTheme()
+        self._sidebar.setStyleSheet(f"""
+            #sidebar {{
+                background: {'#181818' if dark else '#f5f6f8'};
+                border-right: 1px solid {'#404040' if dark else '#d5d5d5'};
+            }}
+        """)
+
     def _build_sidebar(self):
         sidebar = QWidget()
         sidebar.setFixedWidth(180)
         sidebar.setObjectName("sidebar")
+        self._sidebar = sidebar
 
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(8, 12, 8, 12)
         layout.setSpacing(4)
 
-        title = StrongBodyLabel("Navigation", sidebar)
+        title = StrongBodyLabel(_tr("SettingsWindow.nav_title"), sidebar)
         title.setContentsMargins(12, 4, 0, 8)
         layout.addWidget(title)
 
-        btn_chars = NavButton("characters", FluentIcon.EMOJI_TAB_SYMBOLS, "Characters", sidebar)
+        btn_chars = NavButton("characters", FluentIcon.EMOJI_TAB_SYMBOLS, _tr("SettingsWindow.nav_chars"), sidebar)
         btn_chars.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["characters"] = btn_chars
         layout.addWidget(btn_chars)
 
-        btn_llm = NavButton("llm", FluentIcon.ROBOT, "LLM Config", sidebar)
+        btn_llm = NavButton("llm", FluentIcon.ROBOT, _tr("SettingsWindow.nav_llm"), sidebar)
         btn_llm.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["llm"] = btn_llm
         layout.addWidget(btn_llm)
 
         layout.addStretch()
 
-        dark = isDarkTheme()
-        sidebar_bg = "#181818" if dark else "#f5f6f8"
-        sidebar.setStyleSheet(f"""
-            #sidebar {{
-                background: {sidebar_bg};
-                border-right: 1px solid {'#404040' if dark else '#d5d5d5'};
-            }}
-        """)
+        self._update_sidebar_style()
         self._theme_widgets.append(sidebar)
+        qconfig.themeChanged.connect(self._update_sidebar_style)
 
         self._nav_indicator = QWidget(sidebar)
         self._nav_indicator.setFixedSize(4, 28)
@@ -467,9 +483,9 @@ class SettingsWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        title = TitleLabel("Select Character", page)
+        title = TitleLabel(_tr("SettingsWindow.char_title"), page)
         layout.addWidget(title)
-        subtitle = SubtitleLabel("Choose a character to configure", page)
+        subtitle = SubtitleLabel(_tr("SettingsWindow.char_subtitle"), page)
         layout.addWidget(subtitle)
 
         scroll = ScrollArea()
@@ -519,12 +535,12 @@ class SettingsWindow(QWidget):
         layout.setSpacing(12)
 
         top_row = QHBoxLayout()
-        back_btn = PushButton(FluentIcon.LEFT_ARROW, "Back", page)
+        back_btn = PushButton(FluentIcon.LEFT_ARROW, _tr("SettingsWindow.costume_back"), page)
         back_btn.clicked.connect(self._go_back_to_chars)
         top_row.addWidget(back_btn)
         top_row.addStretch()
 
-        self._costume_title = TitleLabel("Select Costume", page)
+        self._costume_title = TitleLabel(_tr("SettingsWindow.costume_title"), page)
         top_row.addWidget(self._costume_title)
         top_row.addStretch()
         layout.addLayout(top_row)
@@ -554,32 +570,32 @@ class SettingsWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
-        title = TitleLabel("LLM Configuration", page)
+        title = TitleLabel(_tr("SettingsWindow.llm_title"), page)
         layout.addWidget(title)
-        subtitle = SubtitleLabel("Configure the AI chat backend (OpenAI-compatible API)", page)
+        subtitle = SubtitleLabel(_tr("SettingsWindow.llm_subtitle"), page)
         layout.addWidget(subtitle)
 
-        profile_title = SubtitleLabel("My Profile", page)
+        profile_title = SubtitleLabel(_tr("SettingsWindow.llm_profile"), page)
         layout.addWidget(profile_title)
 
-        name_label = BodyLabel("Display Name", page)
+        name_label = BodyLabel(_tr("SettingsWindow.llm_display_name"), page)
         layout.addWidget(name_label)
         self._user_name = QLineEdit(page)
-        self._user_name.setPlaceholderText("Your name (leave blank for default)")
+        self._user_name.setPlaceholderText(_tr("SettingsWindow.llm_display_name_placeholder"))
         self._user_name.setFixedHeight(36)
         layout.addWidget(self._user_name)
 
-        avatar_label = BodyLabel("Avatar Color", page)
+        avatar_label = BodyLabel(_tr("SettingsWindow.llm_avatar_color"), page)
         layout.addWidget(avatar_label)
         self._avatar_colors = [
-            ("#2aabee", "Blue"),
-            ("#e91e63", "Pink"),
-            ("#9c27b0", "Purple"),
-            ("#4caf50", "Green"),
-            ("#ff9800", "Orange"),
-            ("#f44336", "Red"),
-            ("#00bcd4", "Cyan"),
-            ("#607d8b", "Grey"),
+            ("#2aabee", _tr("color.blue")),
+            ("#e91e63", _tr("color.pink")),
+            ("#9c27b0", _tr("color.purple")),
+            ("#4caf50", _tr("color.green")),
+            ("#ff9800", _tr("color.orange")),
+            ("#f44336", _tr("color.red")),
+            ("#00bcd4", _tr("color.cyan")),
+            ("#607d8b", _tr("color.grey")),
         ]
         colors_row = QHBoxLayout()
         colors_row.setSpacing(6)
@@ -597,38 +613,38 @@ class SettingsWindow(QWidget):
         colors_row.addStretch()
         layout.addLayout(colors_row)
 
-        api_url_label = BodyLabel("API URL", page)
+        api_url_label = BodyLabel(_tr("SettingsWindow.llm_api_url"), page)
         layout.addWidget(api_url_label)
         self._llm_api_url = QLineEdit(page)
-        self._llm_api_url.setPlaceholderText("https://api.openai.com/v1/chat/completions")
+        self._llm_api_url.setPlaceholderText(_tr("SettingsWindow.llm_api_url_placeholder"))
         self._llm_api_url.setFixedHeight(36)
         layout.addWidget(self._llm_api_url)
 
-        api_key_label = BodyLabel("API Key", page)
+        api_key_label = BodyLabel(_tr("SettingsWindow.llm_api_key"), page)
         layout.addWidget(api_key_label)
         self._llm_api_key = QLineEdit(page)
-        self._llm_api_key.setPlaceholderText("sk-...")
+        self._llm_api_key.setPlaceholderText(_tr("SettingsWindow.llm_api_key_placeholder"))
         self._llm_api_key.setEchoMode(QLineEdit.EchoMode.Password)
         self._llm_api_key.setFixedHeight(36)
         layout.addWidget(self._llm_api_key)
 
-        model_label = BodyLabel("Model ID", page)
+        model_label = BodyLabel(_tr("SettingsWindow.llm_model_id"), page)
         layout.addWidget(model_label)
 
         model_row = QHBoxLayout()
         model_row.setSpacing(8)
         self._llm_model_id = QLineEdit(page)
-        self._llm_model_id.setPlaceholderText("gpt-4o")
+        self._llm_model_id.setPlaceholderText(_tr("SettingsWindow.llm_model_id_placeholder"))
         self._llm_model_id.setFixedHeight(36)
         model_row.addWidget(self._llm_model_id)
 
-        fetch_btn = PushButton(FluentIcon.SYNC, "Fetch", page)
+        fetch_btn = PushButton(FluentIcon.SYNC, _tr("SettingsWindow.llm_fetch"), page)
         fetch_btn.setFixedHeight(36)
         fetch_btn.clicked.connect(self._fetch_models)
         model_row.addWidget(fetch_btn)
         layout.addLayout(model_row)
 
-        self._llm_model_combo_label = BodyLabel("Available Models:", page)
+        self._llm_model_combo_label = BodyLabel(_tr("SettingsWindow.llm_available_models"), page)
         self._llm_model_combo_label.hide()
         layout.addWidget(self._llm_model_combo_label)
 
@@ -652,12 +668,12 @@ class SettingsWindow(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        test_btn = PushButton(FluentIcon.WIFI, "Test Connection", page)
+        test_btn = PushButton(FluentIcon.WIFI, _tr("SettingsWindow.llm_test"), page)
         test_btn.setFixedHeight(36)
         test_btn.clicked.connect(self._test_connection)
         btn_row.addWidget(test_btn)
 
-        save_btn = PrimaryPushButton(FluentIcon.SAVE, "Save", page)
+        save_btn = PrimaryPushButton(FluentIcon.SAVE, _tr("SettingsWindow.llm_save"), page)
         save_btn.setFixedHeight(36)
         save_btn.clicked.connect(self._save_llm_config)
         btn_row.addWidget(save_btn)
@@ -758,8 +774,8 @@ class SettingsWindow(QWidget):
             try:
                 self._cfg.save()
                 InfoBar.success(
-                    "Saved",
-                    "LLM configuration saved successfully.",
+                    _tr("SettingsWindow.llm_saved_title"),
+                    _tr("SettingsWindow.llm_saved_content"),
                     duration=2000,
                     position=InfoBarPosition.TOP,
                     parent=self,
@@ -774,8 +790,8 @@ class SettingsWindow(QWidget):
 
         if not api_url or not api_key or not model_id:
             InfoBar.warning(
-                "Missing Config",
-                "Please fill in all fields before testing.",
+                _tr("SettingsWindow.llm_missing_config_title"),
+                _tr("SettingsWindow.llm_missing_config_content"),
                 duration=2000,
                 position=InfoBarPosition.TOP,
                 parent=self,
@@ -794,8 +810,8 @@ class SettingsWindow(QWidget):
 
     def _on_test_finished(self):
         InfoBar.success(
-            "Connected",
-            "LLM API connection test successful!",
+            _tr("SettingsWindow.llm_connected_title"),
+            _tr("SettingsWindow.llm_connected_content"),
             duration=2000,
             position=InfoBarPosition.TOP,
             parent=self,
@@ -803,7 +819,7 @@ class SettingsWindow(QWidget):
 
     def _on_test_error(self, msg: str):
         InfoBar.error(
-            "Connection Failed",
+            _tr("SettingsWindow.llm_connection_failed_title"),
             msg,
             duration=3000,
             position=InfoBarPosition.TOP,
@@ -816,8 +832,8 @@ class SettingsWindow(QWidget):
 
         if not api_url or not api_key:
             InfoBar.warning(
-                "Missing Config",
-                "Please fill in API URL and API Key first.",
+                _tr("SettingsWindow.llm_missing_api_title"),
+                _tr("SettingsWindow.llm_missing_api_content"),
                 duration=2000,
                 position=InfoBarPosition.TOP,
                 parent=self,
@@ -878,37 +894,37 @@ class SettingsWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
-        settings_title = StrongBodyLabel("Settings", panel)
+        settings_title = StrongBodyLabel(_tr("SettingsWindow.side_settings"), panel)
         layout.addWidget(settings_title)
 
-        fps_label = BodyLabel("Refresh Rate (FPS)", panel)
+        fps_label = BodyLabel(_tr("SettingsWindow.side_fps"), panel)
         layout.addWidget(fps_label)
         self._fps_slider = Slider(Qt.Orientation.Horizontal, panel)
         self._fps_slider.setRange(30, 240)
         self._fps_slider.setValue(self._fps)
         self._fps_slider.setSingleStep(10)
-        self._fps_value = BodyLabel(f"{self._fps} FPS", panel)
+        self._fps_value = BodyLabel(_tr("SettingsWindow.fps_value", v=self._fps), panel)
         self._fps_slider.valueChanged.connect(
-            lambda v: self._fps_value.setText(f"{v} FPS")
+            lambda v: self._fps_value.setText(_tr("SettingsWindow.fps_value", v=v))
         )
         layout.addWidget(self._fps_slider)
         layout.addWidget(self._fps_value)
 
-        opacity_label = BodyLabel("Opacity", panel)
+        opacity_label = BodyLabel(_tr("SettingsWindow.side_opacity"), panel)
         layout.addWidget(opacity_label)
         self._opacity_slider = Slider(Qt.Orientation.Horizontal, panel)
         self._opacity_slider.setRange(20, 100)
         self._opacity_slider.setValue(int(self._opacity * 100))
-        self._opacity_value = BodyLabel(f"{int(self._opacity * 100)}%", panel)
+        self._opacity_value = BodyLabel(_tr("SettingsWindow.opacity_value", v=int(self._opacity * 100)), panel)
         self._opacity_slider.valueChanged.connect(
-            lambda v: self._opacity_value.setText(f"{v}%")
+            lambda v: self._opacity_value.setText(_tr("SettingsWindow.opacity_value", v=v))
         )
         layout.addWidget(self._opacity_slider)
         layout.addWidget(self._opacity_value)
 
         layout.addSpacing(8)
 
-        theme_label = BodyLabel("Dark Theme", panel)
+        theme_label = BodyLabel(_tr("SettingsWindow.side_dark_theme"), panel)
         self._theme_switch = SwitchButton(panel)
         self._theme_switch.setChecked(isDarkTheme())
         self._theme_switch.checkedChanged.connect(
@@ -920,9 +936,26 @@ class SettingsWindow(QWidget):
         theme_row.addWidget(self._theme_switch)
         layout.addLayout(theme_row)
 
+        lang_label = BodyLabel(_tr("SettingsWindow.language"), panel)
+        self._lang_combo = ComboBox(panel)
+        self._lang_combo.setMinimumWidth(120)
+        langs = available_languages()
+        current = current_language()
+        for lang in langs:
+            display = {"en_US": "English", "zh_CN": "中文"}.get(lang, lang)
+            self._lang_combo.addItem(display, lang)
+            if lang == current:
+                self._lang_combo.setCurrentIndex(self._lang_combo.count() - 1)
+        self._lang_combo.currentIndexChanged.connect(self._on_language_changed)
+        lang_row = QHBoxLayout()
+        lang_row.addWidget(lang_label)
+        lang_row.addStretch()
+        lang_row.addWidget(self._lang_combo)
+        layout.addLayout(lang_row)
+
         layout.addStretch()
 
-        btn_text = "Apply & Launch" if self._show_launch else "Apply"
+        btn_text = _tr("SettingsWindow.apply_launch") if self._show_launch else _tr("SettingsWindow.apply")
         self._apply_btn = PrimaryPushButton(FluentIcon.ACCEPT, btn_text, panel)
         self._apply_btn.clicked.connect(self._on_apply)
         layout.addWidget(self._apply_btn)
@@ -933,9 +966,9 @@ class SettingsWindow(QWidget):
         self._current_char = char_key
         self._populate_costumes(char_key)
         display = self._model_manager.get_display_name(char_key)
-        self._costume_title.setText(f"Costumes - {display}")
+        self._costume_title.setText(_tr("SettingsWindow.costumes_title", display=display))
         self._costume_subtitle.setText(
-            f"Select a costume for {display}"
+            _tr("SettingsWindow.costume_subtitle", display=display)
         )
         self._char_page.hide()
         self._costume_page.show()
