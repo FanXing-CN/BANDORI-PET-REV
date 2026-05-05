@@ -1,8 +1,8 @@
 import math
-import time
+import ctypes
 import OpenGL.GL as gl
 from PySide6.QtCore import Qt, QTimerEvent, QPoint
-from PySide6.QtGui import QMouseEvent, QCursor, QGuiApplication, QSurfaceFormat
+from PySide6.QtGui import QMouseEvent, QCursor, QGuiApplication, QSurfaceFormat, QOpenGLContext, QMoveEvent, QResizeEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 
@@ -22,7 +22,9 @@ class Live2DWidget(QOpenGLWidget):
     def __init__(self, parent=None):
         fmt = QSurfaceFormat()
         fmt.setAlphaBufferSize(8)
-        fmt.setSamples(0)
+        fmt.setSamples(0)          # 禁用抗锯齿，防止边缘多边形生成半透明像素
+        fmt.setDepthBufferSize(0)  # 彻底关闭深度缓冲，杜绝 Z-fighting 撕裂
+        fmt.setStencilBufferSize(8)
         fmt.setSwapInterval(0)
         QSurfaceFormat.setDefaultFormat(fmt)
 
@@ -32,6 +34,7 @@ class Live2DWidget(QOpenGLWidget):
         self._model_path = ""
         self._pending_model = ""
         self._system_scale = 1.0
+        
         self._dragging = False
         self._drag_start_x = 0
         self._drag_start_y = 0
@@ -40,23 +43,37 @@ class Live2DWidget(QOpenGLWidget):
         self._right_click_callback = None
         self._drag_locked = False
         self._initialized_gl = False
+        
         self._fps = 120
         self._vsync = True
         self._timer_id = None
 
-        self._last_frame_time = 0
-        self._frame_accum = 0.0
-        self._frame_count = 0
-        self._target_frame_ms = 0
-        self._skip_counter = 0
+        # 性能优化：缓存属性
+        self._cache_w = 1
+        self._cache_h = 1
+        self._cache_w_half = 0.5
+        self._cache_h_half = 0.5
+        self._cache_global_x = 0
+        self._cache_global_y = 0
+
+        # 性能优化：鼠标脏标记
+        self._last_cursor_x = -1
+        self._last_cursor_y = -1
         self._head_track_counter = 0
-        self._cached_cursor_pos = None
+
+        # 极限优化：预分配底层 C 内存
+        self._pixel_buf = (ctypes.c_ubyte * 4)()
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
         self.setAutoFillBackground(False)
         self.setMouseTracking(True)
+
+    def _safe_make_current(self):
+        if QOpenGLContext.currentContext() != self.context():
+            self.makeCurrent()
 
     def _effective_fps(self):
         if self._vsync:
@@ -66,9 +83,8 @@ class Live2DWidget(QOpenGLWidget):
     def _restart_timer(self):
         if self._timer_id is not None:
             self.killTimer(self._timer_id)
-        eff = self._effective_fps()
-        self._target_frame_ms = 1000.0 / eff
-        self._timer_id = self.startTimer(int(self._target_frame_ms), Qt.TimerType.PreciseTimer)
+        target_ms = max(1, int(1000.0 / self._effective_fps()) - 1)
+        self._timer_id = self.startTimer(target_ms, Qt.TimerType.PreciseTimer)
 
     def set_fps(self, fps: int):
         self._fps = max(10, min(fps, 240))
@@ -84,7 +100,7 @@ class Live2DWidget(QOpenGLWidget):
             self._vsync = False
         if not self._initialized_gl:
             return
-        self.makeCurrent()
+        self._safe_make_current()
         try:
             from OpenGL.WGL.EXT.swap_control import wglSwapIntervalEXT
             wglSwapIntervalEXT(1 if self._vsync else 0)
@@ -115,11 +131,11 @@ class Live2DWidget(QOpenGLWidget):
     def _load_model_internal(self, model_json_path: str):
         if not model_json_path or not self._live2d:
             return
-        self.makeCurrent()
+        self._safe_make_current()
         try:
             self._model = self._live2d.LAppModel()
             self._model.LoadModelJson(model_json_path)
-            self._model.Resize(self.width(), self.height())
+            self._model.Resize(self._cache_w, self._cache_h)
             self._model_path = model_json_path
         except Exception as e:
             print(f"Failed to load model: {e}")
@@ -134,11 +150,34 @@ class Live2DWidget(QOpenGLWidget):
     def model_path(self):
         return self._model_path
 
+    def moveEvent(self, event: QMoveEvent):
+        global_pos = self.mapToGlobal(QPoint(0, 0))
+        self._cache_global_x = global_pos.x()
+        self._cache_global_y = global_pos.y()
+        super().moveEvent(event)
+
+    def resizeEvent(self, event: QResizeEvent):
+        size = event.size()
+        self._cache_w = size.width()
+        self._cache_h = size.height()
+        self._cache_w_half = self._cache_w * 0.5
+        self._cache_h_half = self._cache_h * 0.5
+        super().resizeEvent(event)
+
     def initializeGL(self):
         if self._live2d:
             self._live2d.glInit()
         self._system_scale = QGuiApplication.primaryScreen().devicePixelRatio()
         self._initialized_gl = True
+        
+        self._cache_w = self.width()
+        self._cache_h = self.height()
+        self._cache_w_half = self._cache_w * 0.5
+        self._cache_h_half = self._cache_h * 0.5
+        pos = self.mapToGlobal(QPoint(0, 0))
+        self._cache_global_x = pos.x()
+        self._cache_global_y = pos.y()
+
         if self._pending_model:
             self._load_model_internal(self._pending_model)
         self._restart_timer()
@@ -150,50 +189,80 @@ class Live2DWidget(QOpenGLWidget):
 
     def paintGL(self):
         model = self._model
-        live2d = self._live2d
-        if not live2d or not model:
+        if not self._live2d or not model:
             return
 
-        now = time.perf_counter()
-        elapsed = (now - self._last_frame_time) * 1000.0
-        self._last_frame_time = now
+        try:
+            gl.glDisable(0x809D)  # 强制关闭 MSAA
+        except Exception:
+            pass
+        
+        gl.glDisable(gl.GL_DEPTH_TEST)
+        gl.glDisable(gl.GL_DITHER)
 
-        self._frame_accum += elapsed
-        self._frame_count += 1
-        if self._frame_accum >= 1000.0:
-            self._frame_accum -= 1000.0
-            self._frame_count = 0
+        gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
 
-        live2d.clearBuffer()
+        # =======================================================================
+        # 终极拼接缝杀手 (Ultimate Seam Killer)
+        # =======================================================================
+        # Live2D 的 SDK 在底层每一帧每一块网格都会强制重写 glBlendFunc(混合系数)。
+        # 但是！它*不会*重写 glBlendEquationSeparate(混合方程式)！
+        # 我们在这里将 Alpha 通道的混合方程劫持为 GL_MAX (取最大值)。
+        # 这样即使内部网格疯狂重叠，Alpha 通道也只会累加到 1.0 而绝对不会被侵蚀减少，
+        # 从而完美保留外部边缘的半透明抗锯齿，同时彻底消灭内部关节拼接缝！
+        gl.glEnable(gl.GL_BLEND)
+        try:
+            # RGB 保持标准的加法混合 (GL_FUNC_ADD)
+            # Alpha 强制使用取最大值混合 (GL_MAX)
+            gl.glBlendEquationSeparate(gl.GL_FUNC_ADD, gl.GL_MAX)
+        except Exception:
+            pass
+        # =======================================================================
+
+        self._live2d.clearBuffer()
         model.Update()
         model.Draw()
+
+        # 绘制完毕后，将混合方程恢复默认，以免影响 Qt 后续其他 UI 元素的正常绘制
+        try:
+            gl.glBlendEquationSeparate(gl.GL_FUNC_ADD, gl.GL_FUNC_ADD)
+        except Exception:
+            pass
 
     def timerEvent(self, event: QTimerEvent):
         if not self.isVisible():
             return
 
-        if not self._dragging and self._model is not None:
+        model = self._model
+        if not self._dragging and model is not None:
             self._head_track_counter += 1
-            if self._head_track_counter >= 2:
+            if self._head_track_counter >= 3:
                 self._head_track_counter = 0
-                global_pos = QCursor.pos()
-                widget_origin = self.mapToGlobal(QPoint(0, 0))
-                cx = widget_origin.x() + self.width() / 2
-                cy = widget_origin.y() + self.height() / 2
-                dx = global_pos.x() - cx
-                dy = global_pos.y() - cy
-                dist2 = dx * dx + dy * dy
-                if dist2 > 0:
-                    dist = math.sqrt(dist2)
-                    max_dist = 600.0
-                    norm = math.tanh(dist / max_dist)
-                    ux = (dx / dist) * norm
-                    uy = (dy / dist) * norm
-                    scaled_x = cx + ux * max_dist
-                    scaled_y = cy + uy * max_dist
-                    local_x = scaled_x - widget_origin.x()
-                    local_y = scaled_y - widget_origin.y()
-                    self._model.Drag(local_x, local_y)
+                
+                g_pos = QCursor.pos()
+                gx, gy = g_pos.x(), g_pos.y()
+                
+                if gx != self._last_cursor_x or gy != self._last_cursor_y:
+                    self._last_cursor_x = gx
+                    self._last_cursor_y = gy
+                    
+                    cx = self._cache_global_x + self._cache_w_half
+                    cy = self._cache_global_y + self._cache_h_half
+                    dx = gx - cx
+                    dy = gy - cy
+                    
+                    dist = math.hypot(dx, dy)
+                    if dist > 0:
+                        max_dist = 600.0
+                        norm = 1.0 if dist > max_dist else dist / max_dist
+                        factor = norm / dist
+                        ux = dx * factor
+                        uy = dy * factor
+                        
+                        local_x = cx + ux * max_dist - self._cache_global_x
+                        local_y = cy + uy * max_dist - self._cache_global_y
+                        model.Drag(local_x, local_y)
 
         self.update()
 
@@ -261,15 +330,17 @@ class Live2DWidget(QOpenGLWidget):
         return self._get_alpha_fast(x, y) > 8
 
     def _get_alpha_fast(self, x: float, y: float) -> int:
+        if not self._initialized_gl or not self._model:
+            return 0
+        if x < 0 or y < 0 or x >= self._cache_w or y >= self._cache_h:
+            return 0
+            
         try:
-            if not self._initialized_gl or not self._model:
-                return 0
-            if x < 0 or y < 0 or x >= self.width() or y >= self.height():
-                return 0
-            self.makeCurrent()
+            self._safe_make_current()
             sx = int(x * self._system_scale)
-            sy = int((self.height() - y) * self._system_scale)
-            pixel = gl.glReadPixels(sx, sy, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE)
-            return pixel[3] if len(pixel) >= 4 else 0
+            sy = int((self._cache_h - y) * self._system_scale)
+            
+            gl.glReadPixels(sx, sy, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, self._pixel_buf)
+            return self._pixel_buf[3]
         except Exception:
             return 0
