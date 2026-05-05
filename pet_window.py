@@ -590,14 +590,14 @@ class PetWindow(QWidget):
         menu = DWMMenu(self)
 
         menu.addAction(
-            FluentIcon.SETTING,
+            FluentIcon.SETTING.icon(),
             _tr("PetWindow.menu_settings"),
-            triggered=self._open_settings,
+            self._open_settings,
         )
         menu.addAction(
-            FluentIcon.CHAT,
+            FluentIcon.CHAT.icon(),
             _tr("PetWindow.menu_chat"),
-            triggered=self._open_chat,
+            self._open_chat,
         )
         menu.addSeparator()
 
@@ -605,7 +605,7 @@ class PetWindow(QWidget):
         for pct in [100, 80, 60, 40, 20]:
             opacity_menu.addAction(
                 _tr("PetWindow.opacity_pct", pct=pct),
-                triggered=lambda checked, v=pct: self.set_opacity(v / 100.0),
+                lambda checked, v=pct: self.set_opacity(v / 100.0),
             )
         menu.addMenu(opacity_menu)
 
@@ -613,21 +613,21 @@ class PetWindow(QWidget):
 
         theme_text = _tr("PetWindow.menu_light_theme") if isDarkTheme() else _tr("PetWindow.menu_dark_theme")
         menu.addAction(
-            FluentIcon.CONTRAST,
+            FluentIcon.CONTRAST.icon(),
             theme_text,
-            triggered=self._toggle_theme,
+            self._toggle_theme,
         )
         menu.addSeparator()
 
         menu.addAction(
-            FluentIcon.HIDE,
+            FluentIcon.HIDE.icon(),
             _tr("PetWindow.menu_hide"),
-            triggered=self.hide,
+            self.hide,
         )
         menu.addAction(
-            FluentIcon.CLOSE,
+            FluentIcon.CLOSE.icon(),
             _tr("PetWindow.menu_exit"),
-            triggered=self._quit,
+            self._quit,
         )
 
         menu.exec(event.globalPos())
