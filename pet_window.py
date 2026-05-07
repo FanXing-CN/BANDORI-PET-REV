@@ -12,9 +12,8 @@ from PySide6.QtWidgets import (
 )
 
 from qfluentwidgets import (
-    setTheme, Theme, FluentIcon,
+    setTheme, Theme,
 )
-from qfluentwidgets.components.widgets.menu import DWMMenu
 
 from i18n_manager import tr as _tr
 from live2d_widget import Live2DWidget
@@ -642,50 +641,7 @@ class PetWindow(QWidget):
         QApplication.quit()
 
     def contextMenuEvent(self, event):
-        menu = DWMMenu(self)
-
-        menu.addAction(
-            FluentIcon.SETTING.icon(),
-            _tr("PetWindow.menu_settings"),
-            self._open_settings,
-        )
-        menu.addAction(
-            FluentIcon.CHAT.icon(),
-            _tr("PetWindow.menu_chat"),
-            self._open_chat,
-        )
-        menu.addSeparator()
-
-        opacity_menu = DWMMenu(_tr("PetWindow.menu_opacity"), menu)
-        for pct in [100, 80, 60, 40, 20]:
-            opacity_menu.addAction(
-                _tr("PetWindow.opacity_pct", pct=pct),
-                lambda checked, v=pct: self.set_opacity(v / 100.0),
-            )
-        menu.addMenu(opacity_menu)
-
-        menu.addSeparator()
-
-        theme_text = _tr("PetWindow.menu_light_theme") if isDarkTheme() else _tr("PetWindow.menu_dark_theme")
-        menu.addAction(
-            FluentIcon.CONTRAST.icon(),
-            theme_text,
-            self._toggle_theme,
-        )
-        menu.addSeparator()
-
-        menu.addAction(
-            FluentIcon.HIDE.icon(),
-            _tr("PetWindow.menu_hide"),
-            self.hide,
-        )
-        menu.addAction(
-            FluentIcon.CLOSE.icon(),
-            _tr("PetWindow.menu_exit"),
-            self._quit,
-        )
-
-        menu.exec(event.globalPos())
+        event.accept()
 
     @staticmethod
     def _toggle_theme():
