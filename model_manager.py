@@ -5,6 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent
 MODELS_DIR = BASE_DIR / "models"
 OUTFIT_JSON = BASE_DIR / "outfit.json"
 BAND_JSON = BASE_DIR / "band.json"
+CHARACTERS_DIR = BASE_DIR / "characters"
 
 
 class ModelManager:
@@ -12,9 +13,31 @@ class ModelManager:
         self._characters: dict[str, dict] = {}
         self._costume_names: dict[str, dict[str, str]] = {}
         self._bands: list[dict] = []
+        self._advanced_roleplay_cache: dict[str, bool] | None = None
         self._scan()
         self._parse_outfit_json()
         self._parse_band_json()
+
+    def _scan_advanced_roleplay_support(self) -> dict[str, bool]:
+        support = {character: False for character in self.characters}
+        if not CHARACTERS_DIR.exists():
+            return support
+
+        display_to_key = {
+            self.get_display_name(character): character
+            for character in self.characters
+        }
+        for entry in sorted(CHARACTERS_DIR.iterdir()):
+            if not entry.is_dir():
+                continue
+            character = display_to_key.get(entry.name)
+            if not character:
+                continue
+            support[character] = any(
+                path.is_file() and path.suffix.lower() == ".md"
+                for path in entry.iterdir()
+            )
+        return support
 
     def _scan(self):
         for entry in sorted(MODELS_DIR.iterdir()):
@@ -108,6 +131,26 @@ class ModelManager:
             if character in band["characters"]:
                 return band["id"]
         return ""
+
+    def has_advanced_roleplay(self, character: str) -> bool:
+        if self._advanced_roleplay_cache is None:
+            self._advanced_roleplay_cache = self._scan_advanced_roleplay_support()
+        return self._advanced_roleplay_cache.get(character, False)
+
+    def get_band_advanced_roleplay_status(self, band_id: str) -> str:
+        characters = self.get_band_characters(band_id)
+        if not characters:
+            return "red"
+
+        supported_count = sum(
+            1 for character in characters
+            if self.has_advanced_roleplay(character)
+        )
+        if supported_count == len(characters):
+            return "green"
+        if supported_count > 0:
+            return "yellow"
+        return "red"
 
     def get_display_name(self, character: str) -> str:
         return self._characters.get(character, {}).get("display", character.title())

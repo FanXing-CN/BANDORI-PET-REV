@@ -23,6 +23,35 @@ from live2d_widget import Live2DWidget
 _BG_LIGHT = "#ffffff"
 _BG_DARK = "#1e1e1e"
 
+_ROLEPLAY_STATUS_COLORS = {
+    "green": "#2ecc71",
+    "yellow": "#f1c40f",
+    "red": "#e74c3c",
+}
+
+_ROLEPLAY_STATUS_TIPS = {
+    "green": "支持高级角色扮演特性",
+    "yellow": "部分角色支持高级角色扮演特性",
+    "red": "尚未支持高级角色扮演",
+}
+
+
+class RoleplayStatusDot(QWidget):
+    def __init__(self, status: str, parent=None):
+        super().__init__(parent)
+        self._status = status if status in _ROLEPLAY_STATUS_COLORS else "red"
+        self.setFixedSize(14, 14)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setToolTip(_ROLEPLAY_STATUS_TIPS.get(self._status, ""))
+
+    def paintEvent(self, event):
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor(255, 255, 255, 210), 2))
+        painter.setBrush(QBrush(QColor(_ROLEPLAY_STATUS_COLORS[self._status])))
+        painter.drawEllipse(1, 1, self.width() - 2, self.height() - 2)
+
 
 def _theme_color(key: str) -> QColor:
     colors = {
@@ -37,11 +66,14 @@ class CharacterCard(CardWidget):
     char_selected = Signal(str)
 
     def __init__(self, char_key: str, display_name: str, costume_count: int,
-                 image_path: str = "", parent=None):
+                 image_path: str = "", roleplay_status: str = "red", parent=None):
         super().__init__(parent)
         self._char_key = char_key
         self.setFixedSize(220, 360)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._status_dot = RoleplayStatusDot(roleplay_status, self)
+        self._position_status_dot()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
@@ -97,16 +129,26 @@ class CharacterCard(CardWidget):
     def _on_card_clicked(self):
         self.char_selected.emit(self._char_key)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_status_dot()
+
+    def _position_status_dot(self):
+        self._status_dot.move(self.width() - self._status_dot.width() - 12, 12)
+
 
 class BandCard(CardWidget):
     band_selected = Signal(str)
 
     def __init__(self, band_id: str, display_name: str, character_count: int,
-                 logo_path: str = "", parent=None):
+                 logo_path: str = "", roleplay_status: str = "red", parent=None):
         super().__init__(parent)
         self._band_id = band_id
         self.setFixedSize(180, 120)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._status_dot = RoleplayStatusDot(roleplay_status, self)
+        self._position_status_dot()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
@@ -161,6 +203,13 @@ class BandCard(CardWidget):
 
     def _on_card_clicked(self):
         self.band_selected.emit(self._band_id)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_status_dot()
+
+    def _position_status_dot(self):
+        self._status_dot.move(self.width() - self._status_dot.width() - 12, 12)
 
 
 class CostumeItem(QPushButton):
@@ -753,7 +802,9 @@ class SettingsWindow(QWidget):
                 continue
             card = BandCard(
                 band.get("id", ""), band.get("display", ""),
-                len(characters), band.get("logo", ""), self._selection_grid_widget
+                len(characters), band.get("logo", ""),
+                self._model_manager.get_band_advanced_roleplay_status(band.get("id", "")),
+                self._selection_grid_widget
             )
             card.band_selected.connect(self._on_band_selected)
             card.animate_in(delay_ms=card_idx * 80)
@@ -784,6 +835,7 @@ class SettingsWindow(QWidget):
             image_path = self._model_manager.get_character_image_path(char_key)
             card = CharacterCard(
                 char_key, display, len(costumes), image_path,
+                "green" if self._model_manager.has_advanced_roleplay(char_key) else "red",
                 self._selection_grid_widget
             )
             card.char_selected.connect(self._on_char_selected)
