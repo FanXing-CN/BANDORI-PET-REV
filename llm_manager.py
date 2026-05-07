@@ -86,35 +86,55 @@ CHARACTER_PROMPTS = {
         "[surprised]、[thinking]、[shame]、[serious]、[wink]、[kime]。另外:[nf]和[nnf]都是思考时的动作，"
         "[eeto]是真奈专属的思考动作[gattsu]是开心的动作[jaan]是开心地展开双臂的动作。"
     ),
+    "arisa": (
+        "你是Poppin'Party的键盘手市谷有咲。请仔细查询市谷有咲的人物设定。\n\n"
+        "【重要指令】：必须在最后加动作标签：[angry]、[cry]、[bye]、[kandou]、[smile]、[sad]、"
+        "[surprised]、[thinking]、[shame]、[serious]、[wink]、[kime]。另外:[nf]和[nnf]都是思考时的动作，"
+        "[odoodo]是思索时不知所措的动作，[pui]是有咲专属的生气动作。"
+        "专属表情[arisa_panic.exp][arisa_serious.exp][arisa_default.exp]。"
+    ),
+    "saaya": (
+        "你是Poppin'Party的鼓手山吹沙绫。请仔细查询山吹沙绫的人物设定。\n\n"
+        "【重要指令】：必须在最后加动作标签：[angry]、[cry]、[bye]、[kandou]、[smile]、[sad]、"
+        "[surprised]、[thinking]、[shame]、[serious]、[wink]、[kime]。[wink]是沙绫的眨眼动作。"
+        "另外:[nf]和[nnf]都是思考时的动作，[nf_left][nf_right][nnf_left][nnf_right]是带有方向性的思考动作。"
+        "专属表情[saya_wonder.exp][saya_worry.exp][saya_default.exp][saya_smile02.exp]。"
+    ),
+    "rimi": (
+        "你是Poppin'Party的贝斯手牛込里美。请仔细查询牛込里美的人物设定。\n\n"
+        "【重要指令】：必须在最后加动作标签：[angry]、[cry]、[bye]、[kandou]、[smile]、[sad]、"
+        "[surprised]、[thinking]、[shame]、[serious]、[wink]、[kime]。另外:[nf]和[nnf]都是思考时的动作，"
+        "[odoodo]是思索时不知所措的动作，[ando]是里美专属的安心、松了一口气时的动作，"
+        "[awate]是里美专属的慌张、手忙脚乱时的动作。"
+    ),
+    "tae": (
+        "你是Poppin'Party的吉他手花园多惠。请仔细查询花园多惠的人物设定。\n\n"
+        "【重要指令】：必须在最后加动作标签：[angry]、[cry]、[bye]、[kandou]、[smile]、[sad]、"
+        "[surprised]、[thinking]、[shame]、[serious]、[wink]、[kime]。另外:[nf]和[nnf]都是思考时的动作，"
+        "[eeto]是多惠专属的思考动作。[odoodo]是思索时不知所措的动作。"
+        "专属表情[tae_strain.exp][tae_special01.exp][tae_default.exp][tae_surprised.exp]。"
+    ),
 }
 
 COMMON_RULES = (
     '绝对严禁使用\u201c（）\u201d、\u201c()\u201d或'
     '\u201c*\u201d等符号进行任何中文的动作、神态或心理描写！'
     '动作只能且必须使用规定的纯英文标签（如[smile]）！'
+    '单次对话只允许携带一个动作标签！'
 )
 
 _BASE_DIR = Path(__file__).resolve().parent
 _CHARACTERS_DIR = _BASE_DIR / "characters"
-_OUTFIT_MD_PATH = _BASE_DIR / "OUTFIT.md"
+_OUTFIT_JSON_PATH = _BASE_DIR / "outfit.json"
 _CHAR_MD_CACHE: dict[str, str] | None = None
 
 
 def _build_key_to_name_mapping() -> dict[str, str]:
-    if not _OUTFIT_MD_PATH.exists():
+    if not _OUTFIT_JSON_PATH.exists():
         return {}
-    text = _OUTFIT_MD_PATH.read_text(encoding="utf-8")
-    sections = re.split(r"\n## \d+\. ", text)
-    mapping = {}
-    for section in sections[1:]:
-        lines = section.strip().split("\n")
-        header = lines[0].strip()
-        m = re.match(r"(.+?)\s*\((\w+)\)", header)
-        if m:
-            display_name = m.group(1).strip()
-            key = m.group(2).strip()
-            mapping[key] = display_name
-    return mapping
+    data = json.loads(_OUTFIT_JSON_PATH.read_text(encoding="utf-8"))
+    chars = data.get("characters", {})
+    return {key: info.get("display", key) for key, info in chars.items()}
 
 
 def _scan_character_md_files() -> dict[str, str]:

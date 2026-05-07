@@ -1,9 +1,9 @@
-import re
+import json
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 MODELS_DIR = BASE_DIR / "models"
-OUTFIT_MD = BASE_DIR / "OUTFIT.md"
+OUTFIT_JSON = BASE_DIR / "outfit.json"
 
 
 class ModelManager:
@@ -11,7 +11,7 @@ class ModelManager:
         self._characters: dict[str, dict] = {}
         self._costume_names: dict[str, dict[str, str]] = {}
         self._scan()
-        self._parse_outfit_md()
+        self._parse_outfit_json()
 
     def _scan(self):
         for entry in sorted(MODELS_DIR.iterdir()):
@@ -33,28 +33,18 @@ class ModelManager:
                     "costumes": costumes,
                 }
 
-    def _parse_outfit_md(self):
-        if not OUTFIT_MD.exists():
+    def _parse_outfit_json(self):
+        if not OUTFIT_JSON.exists():
             return
-        text = OUTFIT_MD.read_text(encoding="utf-8")
-        sections = re.split(r"\n## \d+\. ", text)
-        for section in sections[1:]:
-            lines = section.strip().split("\n")
-            header = lines[0].strip()
-            m = re.match(r"(.+?)\s*\((\w+)\)", header)
-            if not m:
-                continue
-            display_name = m.group(1).strip()
-            key = m.group(2).strip()
+        data = json.loads(OUTFIT_JSON.read_text(encoding="utf-8"))
+        chars = data.get("characters", {})
+        for key, info in chars.items():
             self._characters.setdefault(key, {})
-            self._characters[key]["display"] = display_name
-            self._costume_names.setdefault(key, {})
-            for line in lines[2:]:
-                m2 = re.match(r"\|\s*`(\S+?)`\s*\|\s*(.+?)\s*\|", line)
-                if m2:
-                    cid = m2.group(1)
-                    cname = m2.group(2)
-                    self._costume_names[key][cid] = cname
+            self._characters[key]["display"] = info.get("display", key)
+            costumes = info.get("costumes", {})
+            if costumes:
+                self._costume_names.setdefault(key, {})
+                self._costume_names[key].update(costumes)
 
     @property
     def characters(self) -> list[str]:
