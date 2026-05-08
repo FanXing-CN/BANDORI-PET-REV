@@ -7,7 +7,7 @@ import re
 from PySide6.QtCore import Qt, QPoint, QTimer, QPropertyAnimation, QEasingCurve, QProcess, QEvent
 from PySide6.QtGui import QColor, QIcon, QCursor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QApplication, QSystemTrayIcon, QMenu,
+    QWidget, QVBoxLayout, QApplication, QSystemTrayIcon, QMenu, QStackedLayout,
     QGraphicsOpacityEffect,
 )
 
@@ -18,6 +18,7 @@ from qfluentwidgets import (
 from i18n_manager import tr as _tr
 from live2d_widget import Live2DWidget
 from model_manager import ModelManager
+from pixel_pet_widget import PixelPetWidget, load_pixel_frames, pixel_path_for_character
 from radial_menu import RadialMenu
 
 
@@ -73,6 +74,9 @@ class PetWindow(QWidget):
         self._radial_menu = None
         self._chat_process = None
         self._settings_process = None
+        self._pixel_frames = load_pixel_frames()
+        self._pixel_mode = bool(self._cfg.get("pet_mode", "live2d") == "pixel") if self._cfg else False
+        self._pixel_ready = False
         self._show_pos_set = False
         self._motion_guard_token = 0
         self._mouse_passthrough = False
@@ -106,13 +110,23 @@ class PetWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        self._stack = QStackedLayout()
+        self._stack.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(self._stack)
+
         self._live2d_widget = Live2DWidget(self)
         self._live2d_widget.set_live2d_module(self._live2d)
         self._live2d_widget.set_window_drag_callback(self._on_drag)
         self._live2d_widget.set_click_callback(self._on_click)
         self._live2d_widget.set_right_click_callback(self._on_right_click)
         self._live2d_widget.set_fps(self._fps)
-        layout.addWidget(self._live2d_widget)
+        self._stack.addWidget(self._live2d_widget)
+
+        self._pixel_widget = PixelPetWidget(self)
+        self._pixel_widget.set_window_drag_callback(self._on_drag)
+        self._pixel_widget.set_click_callback(self._on_click)
+        self._pixel_widget.set_right_click_callback(self._on_right_click)
+        self._stack.addWidget(self._pixel_widget)
 
     def nativeEvent(self, event_type, message):
         if os.name == "nt":
@@ -122,7 +136,12 @@ class PetWindow(QWidget):
                     lparam = int(msg.lParam)
                     x = ctypes.c_short(lparam & 0xFFFF).value
                     y = ctypes.c_short((lparam >> 16) & 0xFFFF).value
-                    if not self._live2d_widget.is_model_hit_at_global(QPoint(x, y)):
+                    point = QPoint(x, y)
+                    if self._pixel_mode:
+                        hit = self._pixel_widget.is_sprite_hit_at_global(point)
+                    else:
+                        hit = self._live2d_widget.is_model_hit_at_global(point)
+                    if not hit:
                         return True, HTTRANSPARENT
             except Exception:
                 pass
@@ -165,13 +184,17 @@ class PetWindow(QWidget):
     def _update_mouse_passthrough(self):
         if os.name != "nt" or not self.isVisible():
             return
-        if self._live2d_widget._dragging:
+        if self._live2d_widget._dragging or self._pixel_widget._dragging:
             return
         global_pos = QCursor.pos()
         if not self.geometry().contains(global_pos):
             self._set_mouse_passthrough(False)
             return
-        self._set_mouse_passthrough(not self._live2d_widget.is_model_hit_at_global(global_pos))
+        if self._pixel_mode:
+            hit = self._pixel_widget.is_sprite_hit_at_global(global_pos)
+        else:
+            hit = self._live2d_widget.is_model_hit_at_global(global_pos)
+        self._set_mouse_passthrough(not hit)
 
     def set_fps(self, fps: int):
         self._fps = fps
@@ -235,6 +258,8 @@ class PetWindow(QWidget):
         )
         if path:
             self._live2d_widget.set_model_path(path)
+            if self._pixel_mode and not self._enable_pixel_mode(save=False):
+                self._enable_live2d_mode(save=False)
             self._update_tooltip()
 
     def _switch_model(self, character: str, costume: str):
@@ -245,6 +270,8 @@ class PetWindow(QWidget):
         self._current_char = character
         self._current_costume = costume
         self._live2d_widget.set_model_path(path)
+        if self._pixel_mode and not self._load_pixel_for_current_character():
+            self._enable_live2d_mode(save=False)
         self._update_tooltip()
         self._save_config()
 
@@ -306,10 +333,13 @@ class PetWindow(QWidget):
             glyph="\U0001F3AC",
             on_click=self._on_radial_motion,
         )
+        pixel_label = _tr("PetWindow.radial_live2d") if self._pixel_mode else _tr("PetWindow.radial_pixel")
+        pixel_enabled = True if self._pixel_mode else bool(pixel_path_for_character(self._current_char))
         self._radial_menu.add_item(
-            "", _tr("PetWindow.radial_pixel"), QColor(34, 180, 140),
-            glyph="\U0001F47E",
+            "", pixel_label, QColor(34, 180, 140),
+            glyph="\U0001F47E" if not self._pixel_mode else "L2D",
             on_click=self._on_radial_pixel,
+            enabled=pixel_enabled,
         )
 
         self._radial_menu.show_at(QPoint(gx, gy))
@@ -627,9 +657,75 @@ class PetWindow(QWidget):
 
     def _on_lock_toggled(self, locked: bool):
         self._live2d_widget.set_drag_locked(locked)
+        self._pixel_widget.set_drag_locked(locked)
 
     def _on_radial_pixel(self):
-        pass
+        if self._pixel_mode:
+            self._enable_live2d_mode()
+        else:
+            self._enable_pixel_mode()
+
+    def _load_pixel_for_current_character(self) -> bool:
+        path = pixel_path_for_character(self._current_char)
+        if not path:
+            self._pixel_ready = False
+            return False
+        self._pixel_ready = self._pixel_widget.load_sprite(path, self._pixel_frames)
+        return self._pixel_ready
+
+    def _remember_current_position(self):
+        if not self._cfg:
+            return
+        if self._pixel_mode:
+            self._cfg.set("pixel_window_x", self.x())
+            self._cfg.set("pixel_window_y", self.y())
+        else:
+            self._cfg.set("window_x", self.x())
+            self._cfg.set("window_y", self.y())
+            self._cfg.set("window_width", self.width())
+            self._cfg.set("window_height", self.height())
+
+    def _restore_live2d_position(self):
+        if not self._cfg:
+            self.resize(400, 500)
+            return
+        w = self._cfg.get("window_width", 400)
+        h = self._cfg.get("window_height", 500)
+        x = self._cfg.get("window_x", -1)
+        y = self._cfg.get("window_y", -1)
+        self.resize(w, h)
+        if x >= 0 and y >= 0:
+            self.move(x, y)
+
+    def _restore_pixel_position(self):
+        if not self._cfg:
+            return
+        x = self._cfg.get("pixel_window_x", -1)
+        y = self._cfg.get("pixel_window_y", -1)
+        if x >= 0 and y >= 0:
+            self.move(x, y)
+
+    def _enable_pixel_mode(self, save: bool = True) -> bool:
+        if not self._load_pixel_for_current_character():
+            return False
+        self._remember_current_position()
+        self._pixel_mode = True
+        self._stack.setCurrentWidget(self._pixel_widget)
+        self.resize(self._pixel_widget.size())
+        self._restore_pixel_position()
+        self._pixel_widget.set_drag_locked(self._live2d_widget._drag_locked)
+        self._motion_guard_token += 1
+        if save:
+            self._save_config()
+        return True
+
+    def _enable_live2d_mode(self, save: bool = True):
+        self._remember_current_position()
+        self._pixel_mode = False
+        self._stack.setCurrentWidget(self._live2d_widget)
+        self._restore_live2d_position()
+        if save:
+            self._save_config()
 
     def _toggle_visible(self):
         if self.isVisible():
@@ -707,10 +803,15 @@ class PetWindow(QWidget):
             self._cfg.set("dark_theme", isDarkTheme())
             self._cfg.set("vsync", self._vsync)
             self._cfg.set("drag_locked", self._live2d_widget._drag_locked)
-            self._cfg.set("window_x", self.x())
-            self._cfg.set("window_y", self.y())
-            self._cfg.set("window_width", self.width())
-            self._cfg.set("window_height", self.height())
+            self._cfg.set("pet_mode", "pixel" if self._pixel_mode else "live2d")
+            if self._pixel_mode:
+                self._cfg.set("pixel_window_x", self.x())
+                self._cfg.set("pixel_window_y", self.y())
+            else:
+                self._cfg.set("window_x", self.x())
+                self._cfg.set("window_y", self.y())
+                self._cfg.set("window_width", self.width())
+                self._cfg.set("window_height", self.height())
             self._cfg.save()
 
     def _quit(self):

@@ -62,10 +62,15 @@ def main():
             cfg.set("fps", pw._fps)
             cfg.set("opacity", pw._opacity)
             cfg.set("dark_theme", isDarkTheme())
-            cfg.set("window_x", pw.x())
-            cfg.set("window_y", pw.y())
-            cfg.set("window_width", pw.width())
-            cfg.set("window_height", pw.height())
+            cfg.set("pet_mode", "pixel" if pw._pixel_mode else "live2d")
+            if pw._pixel_mode:
+                cfg.set("pixel_window_x", pw.x())
+                cfg.set("pixel_window_y", pw.y())
+            else:
+                cfg.set("window_x", pw.x())
+                cfg.set("window_y", pw.y())
+                cfg.set("window_width", pw.width())
+                cfg.set("window_height", pw.height())
         cfg.save()
 
     def on_model_selected(char, costume):
@@ -91,18 +96,26 @@ def main():
             opacity=pet_window_ref.get("opacity", cfg.get("opacity", 1.0)),
             config_manager=cfg,
         )
-        x = cfg.get("window_x", -1)
-        y = cfg.get("window_y", -1)
-        w = cfg.get("window_width", 400)
-        h = cfg.get("window_height", 500)
-        if x >= 0 and y >= 0:
-            pet.resize(w, h)
-            pet.move(x, y)
-            pet._show_pos_set = True
+        if pet._pixel_mode:
+            x = cfg.get("pixel_window_x", -1)
+            y = cfg.get("pixel_window_y", -1)
+            if x >= 0 and y >= 0:
+                pet.move(x, y)
+                pet._show_pos_set = True
+        else:
+            x = cfg.get("window_x", -1)
+            y = cfg.get("window_y", -1)
+            w = cfg.get("window_width", 400)
+            h = cfg.get("window_height", 500)
+            if x >= 0 and y >= 0:
+                pet.resize(w, h)
+                pet.move(x, y)
+                pet._show_pos_set = True
         pet.show()
         pet._live2d_widget.set_vsync(pet_window_ref.get("vsync", cfg.get("vsync", True)))
         if cfg.get("drag_locked", False):
             pet._live2d_widget.set_drag_locked(True)
+            pet._pixel_widget.set_drag_locked(True)
         pet_window_ref["window"] = pet
 
     settings_process_ref = {}

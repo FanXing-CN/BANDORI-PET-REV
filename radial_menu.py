@@ -20,17 +20,18 @@ class RadialMenuItem(QWidget):
     clicked = Signal()
 
     def __init__(self, icon_path: str, label: str, color: QColor,
-                 glyph: str = "", parent=None):
+                 glyph: str = "", enabled: bool = True, parent=None):
         super().__init__(parent)
         self._label = label
         self._color = color
         self._hover = False
         self._glyph = glyph
         self._icon = QPixmap(icon_path) if icon_path and os.path.exists(icon_path) else None
+        self._enabled = enabled
 
         size = 80
         self.setFixedSize(size, size)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if enabled else Qt.CursorShape.ForbiddenCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
     def paintEvent(self, event):
@@ -41,7 +42,9 @@ class RadialMenuItem(QWidget):
         cx, cy = w / 2, h / 2
         r = min(w, h) / 2 - 4
 
-        color = self._color.lighter(130) if self._hover else self._color
+        color = self._color.lighter(130) if self._hover and self._enabled else self._color
+        if not self._enabled:
+            color = QColor(120, 120, 120)
 
         p.setPen(Qt.PenStyle.NoPen)
 
@@ -89,7 +92,7 @@ class RadialMenuItem(QWidget):
         self.update()
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton and self._enabled:
             self.clicked.emit()
 
 
@@ -193,8 +196,8 @@ class RadialMenu(QWidget):
         return max(100, int(200 * 120 / self._fps))
 
     def add_item(self, icon: str, label: str, color: QColor,
-                 on_click: Callable, glyph: str = ""):
-        w = RadialMenuItem(icon, label, color, glyph=glyph, parent=self)
+                 on_click: Callable, glyph: str = "", enabled: bool = True):
+        w = RadialMenuItem(icon, label, color, glyph=glyph, enabled=enabled, parent=self)
         w.clicked.connect(on_click)
         w.clicked.connect(self._on_item_clicked)
         w.hide()

@@ -94,6 +94,7 @@
     "PetWindow.radial_costume": "换装",
     "PetWindow.radial_motion": "动作",
     "PetWindow.radial_pixel": "像素",
+    "PetWindow.radial_live2d": "Live2D",
     "PetWindow.opacity_pct": "{pct}%",
     "ChatWindow.title": "聊天 - {name}",
     "ChatWindow.history_tooltip": "对话历史",

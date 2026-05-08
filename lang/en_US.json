@@ -94,6 +94,7 @@
     "PetWindow.radial_costume": "Costume",
     "PetWindow.radial_motion": "Motion",
     "PetWindow.radial_pixel": "Pixel",
+    "PetWindow.radial_live2d": "Live2D",
     "PetWindow.opacity_pct": "{pct}%",
     "ChatWindow.title": "Chat - {name}",
     "ChatWindow.history_tooltip": "Conversation history",

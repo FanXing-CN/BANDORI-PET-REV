@@ -1,6 +1,7 @@
 AGENTS.md
 __pycache__/
 models/
+pixels/
 third_party/
 config.json
 data.*
