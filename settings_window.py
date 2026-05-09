@@ -19,6 +19,7 @@ from qfluentwidgets.components.widgets.menu import LineEditMenu, TextEditMenu
 from qfluentwidgets.common.config import qconfig
 
 from i18n_manager import tr as _tr, set_language, available_languages, current_language
+from process_utils import app_base_dir
 
 import json
 
@@ -652,7 +653,7 @@ class SettingsWindow(QWidget):
         self._vsync = vsync
         self._saved_user_name = ""
 
-        icon_path = os.path.join(os.path.dirname(__file__), "logo.ico")
+        icon_path = os.path.join(app_base_dir(), "logo.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle(_tr("SettingsWindow.title"))

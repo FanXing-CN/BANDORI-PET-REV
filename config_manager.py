@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
+from process_utils import app_base_dir
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = app_base_dir()
 CONFIG_PATH = BASE_DIR / "config.json"
 
 DEFAULTS = {

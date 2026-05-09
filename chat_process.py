@@ -2,6 +2,8 @@ import argparse
 import os
 import sys
 
+from process_utils import app_base_dir
+
 from PySide6.QtCore import QRect, Qt
 from PySide6.QtWidgets import QApplication
 
@@ -24,7 +26,7 @@ def _parse_args():
 
 
 def main():
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    os.chdir(app_base_dir())
     args = _parse_args()
 
     cfg = ConfigManager()

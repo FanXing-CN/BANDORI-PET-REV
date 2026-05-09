@@ -20,6 +20,7 @@ from action_bus import consume_actions
 from live2d_widget import Live2DWidget
 from model_manager import ModelManager
 from pixel_pet_widget import PixelPetWidget, load_pixel_frames, pixel_path_for_character
+from process_utils import app_base_dir, process_program_and_args
 from radial_menu import RadialMenu
 
 
@@ -63,7 +64,7 @@ class PetWindow(QWidget):
                  character="", costume="", fps=120, opacity=1.0,
                  config_manager=None, enable_tray=True):
         super().__init__()
-        icon_path = os.path.join(os.path.dirname(__file__), "logo.ico")
+        icon_path = os.path.join(app_base_dir(), "logo.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         self._live2d = live2d_module
@@ -238,7 +239,7 @@ class PetWindow(QWidget):
 
     def _init_tray(self):
         self._tray_icon = QSystemTrayIcon(self)
-        icon_path = os.path.join(os.path.dirname(__file__), "logo.ico")
+        icon_path = os.path.join(app_base_dir(), "logo.ico")
         if os.path.exists(icon_path):
             self._tray_icon.setIcon(QIcon(icon_path))
         else:
@@ -405,19 +406,17 @@ class PetWindow(QWidget):
         if self._chat_process is not None and self._chat_process.state() != QProcess.ProcessState.NotRunning:
             return
 
-        import sys
-
-        script = os.path.join(os.path.dirname(__file__), "chat_process.py")
+        base_dir = str(app_base_dir())
         process = QProcess(self)
-        process.setProgram(sys.executable)
-        process.setArguments([
-            script,
+        program, arguments = process_program_and_args(base_dir, "chat_process.py", [
             "--character", self._current_char,
             "--pet-x", str(self.x()),
             "--pet-y", str(self.y()),
             "--pet-w", str(self.width()),
             "--pet-h", str(self.height()),
         ])
+        process.setProgram(program)
+        process.setArguments(arguments)
         process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
         process.readyReadStandardOutput.connect(lambda p=process: self._read_chat_process_output(p))
         process.readyReadStandardError.connect(lambda p=process: self._read_chat_process_error(p))
@@ -804,13 +803,9 @@ class PetWindow(QWidget):
         if self._settings_process is not None and self._settings_process.state() != QProcess.ProcessState.NotRunning:
             return
 
-        import sys
-
-        script = os.path.join(os.path.dirname(__file__), "settings_process.py")
+        base_dir = str(app_base_dir())
         process = QProcess(self)
-        process.setProgram(sys.executable)
-        process.setArguments([
-            script,
+        program, arguments = process_program_and_args(base_dir, "settings_process.py", [
             "--character", self._current_char,
             "--costume", self._current_costume,
             "--fps", str(self._fps),
@@ -819,6 +814,8 @@ class PetWindow(QWidget):
             "--show-launch", "0",
             "--start-on-costumes", "1" if start_on_costumes else "0",
         ])
+        process.setProgram(program)
+        process.setArguments(arguments)
         process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
         process.readyReadStandardOutput.connect(lambda p=process: self._read_settings_process_output(p))
         process.readyReadStandardError.connect(lambda p=process: self._read_settings_process_error(p))

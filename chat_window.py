@@ -11,6 +11,7 @@ from i18n_manager import tr as _tr
 from qfluentwidgets import Action, BodyLabel, StrongBodyLabel, FluentIcon, RoundMenu, isDarkTheme
 from qfluentwidgets.components.widgets.menu import TextEditMenu
 from qfluentwidgets.common.config import qconfig
+from process_utils import app_base_dir
 
 import os
 from datetime import datetime
@@ -620,7 +621,7 @@ class ChatWindow(QWidget):
         self._db = DatabaseManager()
         self._db.delete_empty_conversations(self._conversation_key)
 
-        icon_path = os.path.join(os.path.dirname(__file__), "logo.ico")
+        icon_path = os.path.join(app_base_dir(), "logo.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle(_tr("ChatWindow.title", name=self._display_name))

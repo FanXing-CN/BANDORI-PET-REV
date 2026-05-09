@@ -2,7 +2,9 @@ import sys
 import os
 import json
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+from process_utils import app_base_dir, process_program_and_args
+
+BASE_DIR = str(app_base_dir())
 
 LIVE2D_PACKAGE = os.path.join(BASE_DIR, "third_party", "live2d-py", "package")
 if LIVE2D_PACKAGE not in sys.path:
@@ -146,13 +148,13 @@ def main():
         pet_window_ref["processes"] = []
         for idx, model in enumerate(models):
             process = QProcess(app)
-            process.setProgram(sys.executable)
-            process.setArguments([
-                os.path.join(BASE_DIR, "pet_process.py"),
+            program, arguments = process_program_and_args(BASE_DIR, "pet_process.py", [
                 "--character", model["character"],
                 "--costume", model["costume"],
                 "--index", str(idx),
             ])
+            process.setProgram(program)
+            process.setArguments(arguments)
             process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
             process.readyReadStandardError.connect(lambda p=process: read_pet_error(p))
             process.finished.connect(lambda *args, p=process: clear_pet_process(p))
@@ -225,11 +227,8 @@ def main():
         existing = settings_process_ref.get("process")
         if existing is not None and existing.state() != QProcess.ProcessState.NotRunning:
             return
-        script = os.path.join(BASE_DIR, "settings_process.py")
         process = QProcess(app)
-        process.setProgram(sys.executable)
-        process.setArguments([
-            script,
+        program, arguments = process_program_and_args(BASE_DIR, "settings_process.py", [
             "--character", char,
             "--costume", costume,
             "--fps", str(cfg.get("fps", 120)),
@@ -238,6 +237,8 @@ def main():
             "--show-launch", "1" if show_launch else "0",
             "--start-on-costumes", "0",
         ])
+        process.setProgram(program)
+        process.setArguments(arguments)
         process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
         process.readyReadStandardOutput.connect(lambda p=process: read_settings_output(p))
         process.readyReadStandardError.connect(lambda p=process: read_settings_error(p))

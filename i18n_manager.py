@@ -1,6 +1,7 @@
 import json
 import locale
 from pathlib import Path
+from process_utils import app_base_dir
 
 
 class I18nManager:
@@ -18,7 +19,7 @@ class I18nManager:
         self._initialized = True
         self._translations = {}
         self._current_lang = "en_US"
-        self._lang_dir = Path(__file__).parent / "lang"
+        self._lang_dir = app_base_dir() / "lang"
 
     def set_language(self, lang: str):
         self._current_lang = lang

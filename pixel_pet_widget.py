@@ -6,8 +6,9 @@ from PySide6.QtCore import Qt, QPoint, QRect, QTimer
 from PySide6.QtGui import QImage, QMouseEvent, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
+from process_utils import app_base_dir
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = app_base_dir()
 PIXELS_DIR = BASE_DIR / "pixels"
 FRAMES_PATH = PIXELS_DIR / "frames.json"
 

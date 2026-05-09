@@ -2,7 +2,9 @@ import argparse
 import os
 import sys
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+from process_utils import app_base_dir
+
+BASE_DIR = str(app_base_dir())
 LIVE2D_PACKAGE = os.path.join(BASE_DIR, "third_party", "live2d-py", "package")
 if LIVE2D_PACKAGE not in sys.path:
     sys.path.insert(0, LIVE2D_PACKAGE)

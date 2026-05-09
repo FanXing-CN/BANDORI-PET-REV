@@ -356,7 +356,9 @@ COMMON_RULES = (
     '单次对话只允许携带一个动作标签！'
 )
 
-_BASE_DIR = Path(__file__).resolve().parent
+from process_utils import app_base_dir
+
+_BASE_DIR = app_base_dir()
 _CHARACTERS_DIR = _BASE_DIR / "characters"
 _OUTFIT_JSON_PATH = _BASE_DIR / "outfit.json"
 _CHAR_MD_CACHE: dict[str, str] | None = None

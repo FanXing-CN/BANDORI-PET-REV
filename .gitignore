@@ -2,6 +2,8 @@ AGENTS.md
 __pycache__/
 models/
 pixels/
+build/
+BandoriPet.egg-info/
 third_party/
 config.json
 data.*

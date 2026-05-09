@@ -2,8 +2,9 @@ import os
 
 import OpenGL.GL as gl
 from PIL import Image
+from process_utils import app_base_dir
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = str(app_base_dir())
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 
 
