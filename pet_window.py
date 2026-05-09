@@ -885,25 +885,36 @@ class PetWindow(QWidget):
             from i18n_manager import current_language
             from qfluentwidgets import isDarkTheme
             self._cfg.load()
+            models = self._cfg.get("models", [])
+            model_exists = (
+                not isinstance(models, list)
+                or not models
+                or any(
+                    isinstance(item, dict) and item.get("character") == self._current_char
+                    for item in models
+                )
+            )
             self._cfg.set("language", current_language())
-            self._cfg.set("character", self._current_char)
-            self._cfg.set("costume", self._current_costume)
             path = self._model_manager.get_model_json_path(self._current_char, self._current_costume)
-            self._sync_current_model_entry(path, save=False)
+            if model_exists:
+                self._cfg.set("character", self._current_char)
+                self._cfg.set("costume", self._current_costume)
+                self._sync_current_model_entry(path, save=False)
             self._cfg.set("fps", self._fps)
             self._cfg.set("opacity", self._opacity)
             self._cfg.set("dark_theme", isDarkTheme())
             self._cfg.set("vsync", self._vsync)
             self._cfg.set("drag_locked", self._live2d_widget._drag_locked)
-            self._cfg.set("pet_mode", "pixel" if self._pixel_mode else "live2d")
-            if self._pixel_mode:
-                self._cfg.set("pixel_window_x", self.x())
-                self._cfg.set("pixel_window_y", self.y())
-            else:
-                self._cfg.set("window_x", self.x())
-                self._cfg.set("window_y", self.y())
-                self._cfg.set("window_width", self.width())
-                self._cfg.set("window_height", self.height())
+            if model_exists:
+                self._cfg.set("pet_mode", "pixel" if self._pixel_mode else "live2d")
+                if self._pixel_mode:
+                    self._cfg.set("pixel_window_x", self.x())
+                    self._cfg.set("pixel_window_y", self.y())
+                else:
+                    self._cfg.set("window_x", self.x())
+                    self._cfg.set("window_y", self.y())
+                    self._cfg.set("window_width", self.width())
+                    self._cfg.set("window_height", self.height())
             self._cfg.save()
 
     def _sync_current_model_entry(self, path: str, save: bool = True):
