@@ -129,7 +129,7 @@ class PetWindow(QWidget):
         self._show_pos_set = False
         self._motion_guard_token = 0
         self._mouse_passthrough = False
-        self._use_native_hit_test_passthrough = _is_windows_11_or_later()
+        self._use_native_hit_test_passthrough = False
         self._hit_grace_ms = 250
         self._last_hit_ms = -10000
         self._hit_clock = QElapsedTimer()
@@ -150,8 +150,7 @@ class PetWindow(QWidget):
         if self._enable_tray:
             self._init_tray()
         self._load_initial_model()
-        if not self._use_native_hit_test_passthrough:
-            self._passthrough_timer.start()
+        self._passthrough_timer.start()
         self._action_bus_timer.start()
         QApplication.instance().installEventFilter(self)
 
@@ -249,11 +248,7 @@ class PetWindow(QWidget):
         return super().eventFilter(obj, event)
 
     def _set_mouse_passthrough(self, enabled: bool):
-        if (
-            os.name != "nt"
-            or self._use_native_hit_test_passthrough
-            or enabled == self._mouse_passthrough
-        ):
+        if os.name != "nt" or enabled == self._mouse_passthrough:
             return
         self._apply_passthrough_to_hwnd(int(self.winId()), enabled)
         self._mouse_passthrough = enabled
@@ -293,7 +288,7 @@ class PetWindow(QWidget):
         return self._hit_clock.elapsed() - self._last_hit_ms <= self._hit_grace_ms
 
     def _update_mouse_passthrough(self):
-        if os.name != "nt" or self._use_native_hit_test_passthrough or not self.isVisible():
+        if os.name != "nt" or not self.isVisible():
             return
         if self._live2d_widget._dragging or self._pixel_widget._dragging:
             return
@@ -451,6 +446,7 @@ class PetWindow(QWidget):
         )
 
     def _on_drag(self, dx: int, dy: int):
+        self._set_mouse_passthrough(False)
         self.move(self.x() + dx, self.y() + dy)
 
     def _on_click(self):
