@@ -134,9 +134,14 @@ def main():
                     process.kill()
         pet_window_ref["processes"] = []
 
-    def on_model_selected(char, costume):
-        pet_window_ref["char"] = char
-        pet_window_ref["costume"] = costume
+    def on_model_selected(selected_char, selected_costume, relaunch=False):
+        nonlocal char, costume
+        char = selected_char
+        costume = selected_costume
+        pet_window_ref["char"] = selected_char
+        pet_window_ref["costume"] = selected_costume
+        if relaunch:
+            launch_pet()
 
     def on_settings_changed(data):
         pet_window_ref["fps"] = data.get("fps", 120)
@@ -223,7 +228,10 @@ def main():
             if line.startswith("MODEL\t"):
                 parts = line.split("\t", 2)
                 if len(parts) == 3:
-                    on_model_selected(parts[1], parts[2])
+                    on_model_selected(
+                        parts[1], parts[2],
+                        relaunch=not settings_process_ref.get("show_launch", True),
+                    )
             elif line.startswith("SETTINGS\t"):
                 try:
                     cfg.load()
@@ -248,7 +256,10 @@ def main():
                     if line.startswith("MODEL\t"):
                         parts = line.split("\t", 2)
                         if len(parts) == 3:
-                            on_model_selected(parts[1], parts[2])
+                            on_model_selected(
+                                parts[1], parts[2],
+                                relaunch=not settings_process_ref.get("show_launch", True),
+                            )
                     elif line.startswith("SETTINGS\t"):
                         try:
                             cfg.load()
@@ -265,10 +276,11 @@ def main():
         existing = settings_process_ref.get("process")
         if existing is not None and existing.state() != QProcess.ProcessState.NotRunning:
             return
+        cfg.load()
         process = QProcess(app)
         program, arguments = process_program_and_args(BASE_DIR, "settings_process.py", [
-            "--character", char,
-            "--costume", costume,
+            "--character", cfg.get("character", char),
+            "--costume", cfg.get("costume", costume),
             "--fps", str(cfg.get("fps", 120)),
             "--opacity", str(cfg.get("opacity", 1.0)),
             "--vsync", "1" if cfg.get("vsync", True) else "0",
@@ -282,6 +294,7 @@ def main():
         process.readyReadStandardError.connect(lambda p=process: read_settings_error(p))
         process.finished.connect(lambda *args, p=process: clear_settings_process(p))
         settings_process_ref["process"] = process
+        settings_process_ref["show_launch"] = show_launch
         process.start()
 
     model_valid = bool(
