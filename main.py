@@ -2,7 +2,7 @@ import sys
 import os
 import json
 
-from process_utils import app_base_dir, process_program_and_args
+from process_utils import app_base_dir, ipc_server_name, process_program_and_args
 
 BASE_DIR = str(app_base_dir())
 
@@ -11,6 +11,7 @@ if LIVE2D_PACKAGE not in sys.path:
     sys.path.insert(0, LIVE2D_PACKAGE)
 
 from PySide6.QtCore import Qt, QProcess
+from PySide6.QtNetwork import QLocalServer
 from shiboken6 import isValid
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
@@ -60,6 +61,7 @@ def main():
 
     mgr = ModelManager()
     pet_window_ref = {"processes": []}
+    ipc_ref = {"clients": []}
 
     char = cfg.get("character", "")
     costume = cfg.get("costume", "")
@@ -85,10 +87,41 @@ def main():
         tray_icon.show()
 
     def quit_all():
-        close_pet_processes()
+        notify_chat_processes_shutdown()
+        close_pet_processes(force=True)
+        close_settings_process(force=True)
         if tray_icon is not None:
             tray_icon.hide()
         app.quit()
+
+    def init_ipc_server():
+        name = ipc_server_name()
+        QLocalServer.removeServer(name)
+        server = QLocalServer(app)
+
+        def accept_clients():
+            while server.hasPendingConnections():
+                socket = server.nextPendingConnection()
+                ipc_ref["clients"].append(socket)
+                socket.disconnected.connect(lambda s=socket: remove_ipc_client(s))
+
+        server.newConnection.connect(accept_clients)
+        if server.listen(name):
+            ipc_ref["server"] = server
+
+    def remove_ipc_client(socket):
+        clients = ipc_ref.get("clients", [])
+        if socket in clients:
+            clients.remove(socket)
+        socket.deleteLater()
+
+    def notify_chat_processes_shutdown():
+        for socket in list(ipc_ref.get("clients", [])):
+            if not isValid(socket) or not socket.isOpen():
+                continue
+            socket.write(b"SHUTDOWN\n")
+            socket.flush()
+            socket.waitForBytesWritten(100)
 
     def configured_models():
         models = cfg.get("models", [])
@@ -120,7 +153,7 @@ def main():
         cfg.set("language", current_language())
         cfg.save()
 
-    def close_pet_processes():
+    def close_pet_processes(force=False):
         for process in list(pet_window_ref.get("processes", [])):
             if not isValid(process):
                 continue
@@ -129,10 +162,35 @@ def main():
             except RuntimeError:
                 pass
             if process.state() != QProcess.ProcessState.NotRunning:
-                process.terminate()
-                if not process.waitForFinished(1500):
+                if force:
                     process.kill()
+                    process.waitForFinished(0)
+                else:
+                    process.terminate()
+                    if not process.waitForFinished(100):
+                        process.kill()
         pet_window_ref["processes"] = []
+
+    def close_settings_process(force=False):
+        process = settings_process_ref.get("process")
+        if process is None or not isValid(process):
+            settings_process_ref.pop("process", None)
+            settings_process_ref.pop("stdout_buffer", None)
+            return
+        try:
+            process.finished.disconnect()
+        except RuntimeError:
+            pass
+        if process.state() != QProcess.ProcessState.NotRunning:
+            if force:
+                process.kill()
+                process.waitForFinished(0)
+            else:
+                process.terminate()
+                if not process.waitForFinished(1000):
+                    process.kill()
+        settings_process_ref.pop("process", None)
+        settings_process_ref.pop("stdout_buffer", None)
 
     def on_model_selected(selected_char, selected_costume, relaunch=False):
         nonlocal char, costume
@@ -305,6 +363,7 @@ def main():
     has_configured_models = bool(configured_models())
 
     init_tray()
+    init_ipc_server()
 
     app.aboutToQuit.connect(save_config)
     app.aboutToQuit.connect(close_pet_processes)

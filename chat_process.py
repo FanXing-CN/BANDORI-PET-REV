@@ -2,9 +2,10 @@ import argparse
 import os
 import sys
 
-from process_utils import app_base_dir
+from process_utils import app_base_dir, ipc_server_name
 
 from PySide6.QtCore import QRect, Qt
+from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtWidgets import QApplication
 
 from fluent_silencer import import_qfluentwidgets
@@ -65,6 +66,17 @@ def main():
     window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
     window.closed.connect(lambda: cfg.set("language", current_language()))
     window.closed.connect(app.quit)
+
+    shutdown_socket = QLocalSocket(app)
+
+    def read_shutdown_messages():
+        for line in bytes(shutdown_socket.readAll()).decode("utf-8", errors="ignore").splitlines():
+            if line == "SHUTDOWN":
+                window.close()
+                break
+
+    shutdown_socket.readyRead.connect(read_shutdown_messages)
+    shutdown_socket.connectToServer(ipc_server_name())
 
     window.show()
     window.position_next_to_pet(QRect(args.pet_x, args.pet_y, args.pet_w, args.pet_h))
