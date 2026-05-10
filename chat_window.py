@@ -866,7 +866,7 @@ class ChatWindow(QWidget):
         hint_row.setSpacing(6)
         self._status_dot = QLabel("", area)
         self._status_dot.setFixedSize(7, 7)
-        self._composer_hint = QLabel(_tr("ChatWindow.ready"), area)
+        self._composer_hint = QLabel(self._idle_status_text(), area)
         hint_font = QFont()
         hint_font.setPointSize(8)
         self._composer_hint.setFont(hint_font)
@@ -1166,12 +1166,28 @@ class ChatWindow(QWidget):
             self._conv_id = None
         self._input.setFocus()
 
-    def _set_busy(self, busy: bool):
+    def _has_llm_config(self) -> bool:
+        return bool(
+            self._cfg
+            and self._cfg.get("llm_api_url", "").strip()
+            and self._cfg.get("llm_api_key", "").strip()
+            and self._cfg.get("llm_model_id", "").strip()
+        )
+
+    def _idle_status_text(self) -> str:
+        return _tr("ChatWindow.ready") if self._has_llm_config() else _tr("ChatWindow.not_configured")
+
+    def _set_busy(self, busy: bool, planning: bool = False):
         self._input.setEnabled(not busy)
         self._send_btn.setEnabled(not busy)
         self._new_btn.setEnabled(not busy)
-        planning = busy and self._is_group_chat and self._worker is None
-        self._composer_hint.setText("正在规划群聊发言..." if planning else _tr("ChatWindow.streaming_response") if busy else _tr("ChatWindow.ready"))
+        if planning:
+            status = _tr("ChatWindow.planning_group_response")
+        elif busy:
+            status = _tr("ChatWindow.streaming_response")
+        else:
+            status = self._idle_status_text()
+        self._composer_hint.setText(status)
         dot = _TEAMS_ACCENT if busy else _TELEGRAM_ACCENT
         self._status_dot.setStyleSheet(f"background: {dot}; border-radius: 3px;")
 
@@ -1320,6 +1336,7 @@ class ChatWindow(QWidget):
         model_id = self._cfg.get("llm_model_id", "")
 
         if not api_url or not api_key or not model_id:
+            self._composer_hint.setText(_tr("ChatWindow.not_configured"))
             bubble = MessageBubble(
                 _tr("ChatWindow.no_llm_config"),
                 "assistant",
@@ -1330,7 +1347,7 @@ class ChatWindow(QWidget):
             return
 
         self._input.clear()
-        self._set_busy(True)
+        self._set_busy(True, planning=self._is_group_chat)
         self._stream_buffer = ""
         self._visible_stream_text = ""
         self._reasoning_stream_text = ""
@@ -1392,7 +1409,7 @@ class ChatWindow(QWidget):
 
     def _show_plan_divider(self):
         self._hide_plan_divider()
-        divider = PlanDivider("AI 调度中", self._msg_area)
+        divider = PlanDivider(_tr("ChatWindow.ai_scheduling"), self._msg_area)
         self._msg_layout.insertWidget(self._msg_layout.count() - 1, divider)
         self._plan_divider = divider
         self._scroll_to_bottom()
@@ -1444,6 +1461,7 @@ class ChatWindow(QWidget):
         self._start_next_group_response()
 
     def _start_response_for_character(self, character: str, spoken_names: list[str]):
+        self._set_busy(True, planning=False)
         api_url = self._cfg.get("llm_api_url", "")
         api_key = self._cfg.get("llm_api_key", "")
         model_id = self._cfg.get("llm_model_id", "")
