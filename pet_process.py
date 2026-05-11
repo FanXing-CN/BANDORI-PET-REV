@@ -107,10 +107,7 @@ def main():
     else:
         x = entry.get("window_x", cfg.get("window_x", -1))
         y = entry.get("window_y", cfg.get("window_y", -1))
-        w = entry.get("window_width", cfg.get("window_width", 400))
-        h = entry.get("window_height", cfg.get("window_height", 500))
         if x >= 0 and y >= 0:
-            pet.resize(w, h)
             pet.move(x + args.index * 36 if "window_x" not in entry else x, y)
             pet._show_pos_set = True
 
