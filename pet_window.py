@@ -929,6 +929,10 @@ class PetWindow(QWidget):
     def _on_lock_toggled(self, locked: bool):
         self._live2d_widget.set_drag_locked(locked)
         self._pixel_widget.set_drag_locked(locked)
+        if self._cfg:
+            self._cfg.load()
+            self._cfg.set("drag_locked", bool(locked))
+            self._cfg.save()
 
     def _on_radial_pixel(self):
         if self._pixel_mode:
