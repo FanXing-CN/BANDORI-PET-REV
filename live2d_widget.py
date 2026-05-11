@@ -450,7 +450,18 @@ class Live2DWidget(QOpenGLWidget):
         if not self._model:
             return False
         state = self._hit_state_at(x, y)
+        if state is None:
+            state = self._hit_state_at_sync(x, y)
         return state is True
+
+    def _hit_state_at_sync(self, x: float, y: float) -> bool:
+        if not self._model or not self._is_in_model_hit_area(x, y):
+            self._last_hit_state = False
+            return False
+        alpha = self._alpha_near_sync(x, y)
+        self._last_hit_test_ms = self._hit_clock.elapsed()
+        self._last_hit_state = alpha > self._hit_alpha_threshold
+        return self._last_hit_state
 
     def _hit_state_at(self, x: float, y: float):
         if not self._model or not self._is_in_model_hit_area(x, y):
@@ -636,6 +647,45 @@ class Live2DWidget(QOpenGLWidget):
         if not known:
             return None
         return alpha
+
+    def _alpha_near_sync(self, x: float, y: float) -> int:
+        alpha = 0
+        for dx, dy in self._hit_probe_offsets:
+            px = x + dx
+            py = y + dy
+            sample_alpha = self._get_alpha_sync(px, py)
+            alpha = max(alpha, sample_alpha)
+            if alpha > self._hit_alpha_threshold:
+                break
+        return alpha
+
+    def _get_alpha_sync(self, x: float, y: float) -> int:
+        if not self._initialized_gl or not self._model:
+            return 0
+        if x < 0 or y < 0 or x >= self._cache_w or y >= self._cache_h:
+            return 0
+        if not (self._is_in_sdk_hit_area(x, y) or self._is_in_custom_hit_area(x, y)):
+            return 0
+
+        try:
+            self._safe_make_current()
+            self._process_hit_pbo_results()
+            sx = int(x * self._system_scale)
+            sy = int((self._cache_h - 1 - y) * self._system_scale)
+            key = (sx, sy)
+            now = self._hit_clock.elapsed()
+            cached = self._hit_alpha_cache.get(key)
+            if cached and now - cached[1] <= self._hit_alpha_cache_ttl_ms:
+                return cached[0]
+
+            pixel = (ctypes.c_ubyte * 4)()
+            gl.glBindBuffer(gl.GL_PIXEL_PACK_BUFFER, 0)
+            gl.glReadPixels(sx, sy, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, pixel)
+            alpha = int(pixel[3])
+            self._hit_alpha_cache[key] = (alpha, now)
+            return alpha
+        except Exception:
+            return 0
 
     def _get_alpha_fast(self, x: float, y: float):
         if not self._initialized_gl or not self._model:
