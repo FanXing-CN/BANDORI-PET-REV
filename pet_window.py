@@ -856,6 +856,9 @@ class PetWindow(QWidget):
     def _find_default_expression(self, model):
         if not hasattr(model, 'expressions') or not model.expressions:
             return None
+        configured_expression = str(self._current_model_entry().get("default_expression", ""))
+        if configured_expression in model.expressions:
+            return configured_expression
         for name in model.expressions:
             if name.lower().endswith('_default') or name.lower() == 'default':
                 return name
@@ -1071,6 +1074,9 @@ class PetWindow(QWidget):
         default_motion = self._current_model_entry().get("default_motion", "")
         if default_motion:
             entry["default_motion"] = default_motion
+        default_expression = self._current_model_entry().get("default_expression", "")
+        if default_expression:
+            entry["default_expression"] = default_expression
         entry["pet_mode"] = "pixel" if self._pixel_mode else "live2d"
         if self._pixel_mode:
             entry.update({

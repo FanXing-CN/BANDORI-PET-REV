@@ -201,3 +201,20 @@ class ModelManager:
         if not isinstance(motions, dict):
             return []
         return sorted(str(name) for name in motions if name)
+
+    def get_expression_names(self, character: str, costume: str) -> list[str]:
+        path = self.get_model_json_path(character, costume)
+        if not path:
+            return []
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return []
+        expressions = data.get("expressions", [])
+        if not isinstance(expressions, list):
+            return []
+        names = []
+        for item in expressions:
+            if isinstance(item, dict) and item.get("name"):
+                names.append(str(item["name"]))
+        return sorted(names)

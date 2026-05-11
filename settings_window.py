@@ -1170,7 +1170,7 @@ class SettingsWindow(QWidget):
         detail_center.addStretch(1)
 
         self._detail_card = CardWidget(self._model_detail_widget)
-        self._detail_card.setFixedSize(360, 440)
+        self._detail_card.setFixedSize(300, 440)
         card_layout = QVBoxLayout(self._detail_card)
         card_layout.setContentsMargins(26, 24, 26, 24)
         card_layout.setSpacing(12)
@@ -1216,6 +1216,20 @@ class SettingsWindow(QWidget):
         self._default_motion_btn.clicked.connect(self._reset_default_motion)
         motion_row.addWidget(self._default_motion_btn)
         action_col.addLayout(motion_row)
+
+        expression_label = StrongBodyLabel("默认表情", self._model_detail_widget)
+        expression_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        action_col.addWidget(expression_label)
+        expression_row = QHBoxLayout()
+        expression_row.setSpacing(8)
+        self._default_expression_combo = ComboBox(self._model_detail_widget)
+        self._default_expression_combo.setMinimumWidth(190)
+        self._default_expression_combo.currentIndexChanged.connect(self._on_default_expression_changed)
+        expression_row.addWidget(self._default_expression_combo, 1)
+        self._default_expression_btn = PushButton("默认", self._model_detail_widget)
+        self._default_expression_btn.clicked.connect(self._reset_default_expression)
+        expression_row.addWidget(self._default_expression_btn)
+        action_col.addLayout(expression_row)
         action_col.addStretch(1)
 
         detail_center.addWidget(self._detail_card, 0, Qt.AlignmentFlag.AlignCenter)
@@ -1226,6 +1240,7 @@ class SettingsWindow(QWidget):
 
         self._detail_action_hint = hint
         self._detail_motion_label = motion_label
+        self._detail_expression_label = expression_label
         self._update_switch_button_style()
         qconfig.themeChanged.connect(self._update_switch_button_style)
 
@@ -1249,6 +1264,7 @@ class SettingsWindow(QWidget):
         """)
         self._detail_action_hint.setStyleSheet(f"color: {hint_color};")
         self._detail_motion_label.setStyleSheet(f"color: {hint_color};")
+        self._detail_expression_label.setStyleSheet(f"color: {hint_color};")
         self._switch_model_btn.setStyleSheet(f"""
             QPushButton {{
                 color: #ffffff;
@@ -1290,6 +1306,7 @@ class SettingsWindow(QWidget):
         self._detail_costume.setText(f"服装：{costume_name}")
         self._detail_band.setText(f"乐队：{band_name}" if band_name else "")
         self._populate_default_motion_combo(item)
+        self._populate_default_expression_combo(item)
 
         pixmap = QPixmap(self._model_manager.get_character_image_path(character))
         if not pixmap.isNull():
@@ -1339,6 +1356,40 @@ class SettingsWindow(QWidget):
             return
         item["default_motion"] = ""
         self._populate_default_motion_combo(item)
+        self._save_configured_models()
+
+    def _populate_default_expression_combo(self, item: dict):
+        combo = self._default_expression_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("跟随模型默认", userData="")
+        expressions = self._model_manager.get_expression_names(item["character"], item["costume"])
+        for expression in expressions:
+            combo.addItem(expression, userData=expression)
+        current = item.get("default_expression", "")
+        if current not in expressions:
+            current = ""
+            item["default_expression"] = ""
+        for idx in range(combo.count()):
+            if combo.itemData(idx) == current:
+                combo.setCurrentIndex(idx)
+                break
+        combo.blockSignals(False)
+
+    def _on_default_expression_changed(self, index: int):
+        item = self._selected_model_item()
+        if not item:
+            return
+        expression = self._default_expression_combo.itemData(index) or ""
+        item["default_expression"] = expression
+        self._save_configured_models()
+
+    def _reset_default_expression(self):
+        item = self._selected_model_item()
+        if not item:
+            return
+        item["default_expression"] = ""
+        self._populate_default_expression_combo(item)
         self._save_configured_models()
 
     def _enter_model_selection(self):
@@ -2440,6 +2491,7 @@ class SettingsWindow(QWidget):
             "pixel_window_y": -1,
             "pet_mode": "live2d",
             "default_motion": "",
+            "default_expression": "",
         }
         replace_index = self._editing_model_index
         if replace_index is None and not self._adding_model:
@@ -2459,6 +2511,7 @@ class SettingsWindow(QWidget):
                 "pixel_window_x",
                 "pixel_window_y",
                 "default_motion",
+                "default_expression",
             ):
                 if key in self._configured_models[replace_index]:
                     preserved[key] = self._configured_models[replace_index][key]
@@ -2477,6 +2530,7 @@ class SettingsWindow(QWidget):
                         "pixel_window_x",
                         "pixel_window_y",
                         "default_motion",
+                        "default_expression",
                     ):
                         if key in item:
                             preserved[key] = item[key]

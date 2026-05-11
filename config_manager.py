@@ -49,6 +49,7 @@ MODEL_DEFAULTS = {
     "pixel_window_y": -1,
     "pet_mode": "live2d",
     "default_motion": "",
+    "default_expression": "",
 }
 
 
