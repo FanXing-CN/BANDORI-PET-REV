@@ -5,9 +5,6 @@ import sys
 from process_utils import app_base_dir
 
 BASE_DIR = str(app_base_dir())
-LIVE2D_PACKAGE = os.path.join(BASE_DIR, "third_party", "live2d-py", "package")
-if LIVE2D_PACKAGE not in sys.path:
-    sys.path.insert(0, LIVE2D_PACKAGE)
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
@@ -18,8 +15,6 @@ from config_manager import ConfigManager
 from i18n_manager import detect_system_language, set_language
 from model_manager import ModelManager
 from settings_window import SettingsWindow
-import live2d.v2 as live2d
-from platform_patch import PatchedPlatformManager
 
 
 def _parse_args():
@@ -51,11 +46,6 @@ def main():
 
     setTheme(Theme.DARK if cfg.get("dark_theme", False) else Theme.LIGHT)
 
-    live2d.init()
-    live2d.Live2DFramework.setPlatformManager(
-        PatchedPlatformManager(live2d.Live2DFramework.getPlatformManager())
-    )
-
     mgr = ModelManager()
     window = SettingsWindow(
         mgr,
@@ -67,7 +57,7 @@ def main():
         start_on_costumes=args.start_on_costumes == "1",
         config_manager=cfg,
         vsync=args.vsync == "1",
-        live2d_module=live2d,
+        live2d_module=None,
     )
     window.connect_ipc_output()
     window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -79,7 +69,6 @@ def main():
 
     window.show()
     ret = app.exec()
-    live2d.dispose()
     return ret
 
 
