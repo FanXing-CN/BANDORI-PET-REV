@@ -1170,7 +1170,7 @@ class SettingsWindow(QWidget):
         detail_center.addStretch(1)
 
         self._detail_card = CardWidget(self._model_detail_widget)
-        self._detail_card.setFixedSize(420, 440)
+        self._detail_card.setFixedSize(360, 440)
         card_layout = QVBoxLayout(self._detail_card)
         card_layout.setContentsMargins(26, 24, 26, 24)
         card_layout.setSpacing(12)
@@ -1202,6 +1202,20 @@ class SettingsWindow(QWidget):
         hint = BodyLabel("选择新的角色或服装", self._model_detail_widget)
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         action_col.addWidget(hint)
+
+        motion_label = StrongBodyLabel("默认动作", self._model_detail_widget)
+        motion_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        action_col.addWidget(motion_label)
+        motion_row = QHBoxLayout()
+        motion_row.setSpacing(8)
+        self._default_motion_combo = ComboBox(self._model_detail_widget)
+        self._default_motion_combo.setMinimumWidth(190)
+        self._default_motion_combo.currentIndexChanged.connect(self._on_default_motion_changed)
+        motion_row.addWidget(self._default_motion_combo, 1)
+        self._default_motion_btn = PushButton("默认", self._model_detail_widget)
+        self._default_motion_btn.clicked.connect(self._reset_default_motion)
+        motion_row.addWidget(self._default_motion_btn)
+        action_col.addLayout(motion_row)
         action_col.addStretch(1)
 
         detail_center.addWidget(self._detail_card, 0, Qt.AlignmentFlag.AlignCenter)
@@ -1211,6 +1225,7 @@ class SettingsWindow(QWidget):
         detail_shell.addStretch(1)
 
         self._detail_action_hint = hint
+        self._detail_motion_label = motion_label
         self._update_switch_button_style()
         qconfig.themeChanged.connect(self._update_switch_button_style)
 
@@ -1233,6 +1248,7 @@ class SettingsWindow(QWidget):
             }}
         """)
         self._detail_action_hint.setStyleSheet(f"color: {hint_color};")
+        self._detail_motion_label.setStyleSheet(f"color: {hint_color};")
         self._switch_model_btn.setStyleSheet(f"""
             QPushButton {{
                 color: #ffffff;
@@ -1273,6 +1289,7 @@ class SettingsWindow(QWidget):
         self._detail_name.setText(display)
         self._detail_costume.setText(f"服装：{costume_name}")
         self._detail_band.setText(f"乐队：{band_name}" if band_name else "")
+        self._populate_default_motion_combo(item)
 
         pixmap = QPixmap(self._model_manager.get_character_image_path(character))
         if not pixmap.isNull():
@@ -1289,6 +1306,40 @@ class SettingsWindow(QWidget):
             if item["character"] == self._selected_list_character:
                 return item
         return None
+
+    def _populate_default_motion_combo(self, item: dict):
+        combo = self._default_motion_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("跟随模型默认", userData="")
+        motions = self._model_manager.get_motion_names(item["character"], item["costume"])
+        for motion in motions:
+            combo.addItem(motion, userData=motion)
+        current = item.get("default_motion", "")
+        if current not in motions:
+            current = ""
+            item["default_motion"] = ""
+        for idx in range(combo.count()):
+            if combo.itemData(idx) == current:
+                combo.setCurrentIndex(idx)
+                break
+        combo.blockSignals(False)
+
+    def _on_default_motion_changed(self, index: int):
+        item = self._selected_model_item()
+        if not item:
+            return
+        motion = self._default_motion_combo.itemData(index) or ""
+        item["default_motion"] = motion
+        self._save_configured_models()
+
+    def _reset_default_motion(self):
+        item = self._selected_model_item()
+        if not item:
+            return
+        item["default_motion"] = ""
+        self._populate_default_motion_combo(item)
+        self._save_configured_models()
 
     def _enter_model_selection(self):
         self._selecting_model = True
@@ -2388,6 +2439,7 @@ class SettingsWindow(QWidget):
             "pixel_window_x": -1,
             "pixel_window_y": -1,
             "pet_mode": "live2d",
+            "default_motion": "",
         }
         replace_index = self._editing_model_index
         if replace_index is None and not self._adding_model:
@@ -2406,6 +2458,7 @@ class SettingsWindow(QWidget):
                 "window_height",
                 "pixel_window_x",
                 "pixel_window_y",
+                "default_motion",
             ):
                 if key in self._configured_models[replace_index]:
                     preserved[key] = self._configured_models[replace_index][key]
@@ -2423,6 +2476,7 @@ class SettingsWindow(QWidget):
                         "window_height",
                         "pixel_window_x",
                         "pixel_window_y",
+                        "default_motion",
                     ):
                         if key in item:
                             preserved[key] = item[key]
