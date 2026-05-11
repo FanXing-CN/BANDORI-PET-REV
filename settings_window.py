@@ -1155,11 +1155,12 @@ class SettingsWindow(QWidget):
         self._detail_card = CardWidget(self._model_detail_widget)
         self._detail_card.setFixedSize(300, 440)
         card_layout = QVBoxLayout(self._detail_card)
-        card_layout.setContentsMargins(26, 24, 26, 24)
+        card_h_margin = 26
+        card_layout.setContentsMargins(card_h_margin, 24, card_h_margin, 24)
         card_layout.setSpacing(12)
 
         self._detail_image = QLabel(self._detail_card)
-        self._detail_image.setFixedSize(300, 285)
+        self._detail_image.setFixedSize(self._detail_card.width() - card_h_margin * 2, 285)
         self._detail_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card_layout.addWidget(self._detail_image, 0, Qt.AlignmentFlag.AlignHCenter)
 

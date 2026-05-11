@@ -333,47 +333,47 @@
     "sakiko": {
       "display": "丰川祥子",
       "costumes": {
-        "causal": "常服",
-        "jh_school_winter": "月之森冬季校服",
-        "school_summer": "夏季校服",
-        "school_winter": "冬季校服",
-        "341": "队服"
+        "casual-2023": "常服2023",
+        "event_297_story_01": "event_297_story_01",
+        "school_summer-2023": "夏季校服2023",
+        "school_winter-2023": "冬季校服2023"
       }
     },
     "mutsumi": {
       "display": "若叶睦",
       "costumes": {
-        "casual": "常服",
-        "school_summer": "夏季校服",
-        "school_winter": "冬季校服",
-        "339": "队服"
+        "casual-2023": "常服2023",
+        "event_297_story_01": "event_297_story_01",
+        "school_summer-2023": "夏季校服2023",
+        "school_winter-2023": "冬季校服2023"
       }
     },
     "umiri": {
       "display": "八幡海玲",
       "costumes": {
-        "casual": "常服",
-        "school_summer": "夏季校服",
-        "school_winter": "冬季校服",
-        "338": "队服"
+        "casual-2023": "常服2023",
+        "event_297_story_01": "event_297_story_01",
+        "school_summer-2023": "夏季校服2023",
+        "school_winter-2023": "冬季校服2023"
       }
     },
     "uika": {
       "display": "三角初华",
       "costumes": {
-        "casual": "常服",
-        "casual_nocap": "常服（无帽子）",
-        "school_summer": "夏季校服",
-        "school_winter": "冬季校服",
-        "sumimi": "Sumimi",
-        "337": "队服"
+        "casual-2023": "常服2023",
+        "event_297_story_01": "event_297_story_01",
+        "school_summer-2023": "夏季校服2023",
+        "school_winter-2023": "冬季校服2023",
+        "sumimi": "sumimi",
+        "casual_nocap": "常服(无帽)",
+        "casual-2023_nocap": "常服2023(无帽)"
       }
     },
     "nyamu": {
       "display": "祐天寺若麦",
       "costumes": {
-        "casual": "常服",
-        "340": "队服"
+        "casual-2023": "常服2023",
+        "event_297_story_01": "event_297_story_01"
       }
     },
     "mana": {
@@ -2959,6 +2959,15 @@
         "live_r_2023": "队服2023",
         "miku_rettou": "劣等上等",
         "vocal_limited_sr": "限定SR"
+      }
+    },
+    "asuka": {
+      "display": "户山明日香",
+      "costumes": {
+        "casual": "常服",
+        "casual-2023": "常服2023",
+        "school_summer": "school_summer",
+        "school_winter-2023": "冬季校服2023"
       }
     }
   }
