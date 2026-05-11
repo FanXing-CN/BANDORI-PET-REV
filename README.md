@@ -51,17 +51,23 @@ cd BANDORI-PET-REV
 
 ### 3. 下载模型文件（必需！）
 
-> 🚨 **模型文件体积较大（~2GB），未纳入本仓库，请手动下载后放入 `models/` 目录。**
+> 💡 **推荐：zstd 压缩流格式模型包**（~900MB，流式加载无需解压到磁盘，性能损失极低）
+>
+> | 下载渠道 | 链接 |
+> |----------|------|
+> | 🚀 **ModelScope** | [models.zip](https://modelscope.cn/datasets/HELPMEEADICE/BanG-Dream-Live2D/resolve/master/models.zip) |
+> | 🐌 **百度网盘** | [下载](https://pan.baidu.com/s/1fn7DfgFQLbM6ScS-qCJLYQ?pwd=3724) 提取码：`3724` |
+> | ☁️ **Google Drive** | [下载](https://drive.google.com/file/d/1t0TNRSV5gv2fTnFh-oWi70XNU1Xvfpub) |
 
-模型包包含 51 位角色的全部 Live2D 模型资源（`.moc`、贴图、动作/表情配置文件等）。
+> 🚨 **传统 7z 模型包**（~4GB，需解压到磁盘）
+>
+> | 下载渠道 | 链接 |
+> |----------|------|
+> | 🚀 **ModelScope** | [models.7z](https://modelscope.cn/datasets/HELPMEEADICE/BanG-Dream-Live2D/resolve/master/models.7z) |
+> | ☁️ **Google Drive** | [下载](https://drive.google.com/file/d/1qX9rEhBviT5auwCLg7g3klBbT5wAbjnL) |
+> | 🐌 **百度网盘** | [下载](https://pan.baidu.com/s/17GAJy2_WEZZbdVdZAMfXHQ?pwd=3724) 提取码：`3724` |
 
-| 下载渠道 | 链接 |
-|----------|------|
-| 🚀 **ModelScope**（推荐，国内直连快） | [models.7z](https://modelscope.cn/datasets/HELPMEEADICE/BanG-Dream-Live2D/resolve/master/models.7z) |
-| ☁️ **Google Drive** | [下载](https://drive.google.com/file/d/1qX9rEhBviT5auwCLg7g3klBbT5wAbjnL) |
-| 🐌 **百度网盘** | [下载](https://pan.baidu.com/s/17GAJy2_WEZZbdVdZAMfXHQ?pwd=3724) 提取码：`3724` |
-
-下载后将 `models/` 解压到项目根目录，目录结构应为：
+下载后将 `models/` 放入项目根目录。若使用 7z 包，解压后的目录结构应为：
 
 ```
 BandoriPet/
