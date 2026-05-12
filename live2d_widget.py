@@ -277,10 +277,17 @@ class Live2DWidget(QOpenGLWidget):
         return self._model_path
 
     def moveEvent(self, event: QMoveEvent):
-        global_pos = self.mapToGlobal(QPoint(0, 0))
-        self._cache_global_x = global_pos.x()
-        self._cache_global_y = global_pos.y()
+        self._update_global_pos_cache()
         super().moveEvent(event)
+
+    def _update_global_pos_cache(self) -> bool:
+        global_pos = self.mapToGlobal(QPoint(0, 0))
+        x = global_pos.x()
+        y = global_pos.y()
+        moved = x != self._cache_global_x or y != self._cache_global_y
+        self._cache_global_x = x
+        self._cache_global_y = y
+        return moved
 
     def resizeEvent(self, event: QResizeEvent):
         size = event.size()
@@ -315,9 +322,7 @@ class Live2DWidget(QOpenGLWidget):
         self._cache_h = self.height()
         self._cache_w_half = self._cache_w * 0.5
         self._cache_h_half = self._cache_h * 0.5
-        pos = self.mapToGlobal(QPoint(0, 0))
-        self._cache_global_x = pos.x()
-        self._cache_global_y = pos.y()
+        self._update_global_pos_cache()
 
         if self._pending_model:
             self._load_model_internal(self._pending_model)
@@ -358,9 +363,10 @@ class Live2DWidget(QOpenGLWidget):
         model = self._model
         if self._dragging or model is None:
             return
+        widget_moved = self._update_global_pos_cache()
         cursor_dx = gx - self._last_cursor_x
         cursor_dy = gy - self._last_cursor_y
-        if cursor_dx * cursor_dx + cursor_dy * cursor_dy < self._head_track_min_delta_sq:
+        if not widget_moved and cursor_dx * cursor_dx + cursor_dy * cursor_dy < self._head_track_min_delta_sq:
             return
         self._last_cursor_x = gx
         self._last_cursor_y = gy
