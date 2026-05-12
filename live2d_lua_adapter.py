@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import random
 from pathlib import Path
 
 from lupa.luajit21 import LuaRuntime
@@ -69,9 +70,54 @@ class _ModelSetting:
     def __init__(self, data: dict):
         self.json = data
 
+    def getMotionNames(self) -> list[str]:
+        motions = self.json.get("motions") or {}
+        if not isinstance(motions, dict):
+            return []
+        return [str(name) for name in motions if name]
+
+    def getMotionNum(self, name: str) -> int:
+        group = self._motion_group(name)
+        return len(group)
+
+    def resolveMotion(self, name: str, no: int = 0) -> tuple[str, int] | None:
+        group = self._motion_group(name)
+        if group:
+            return name, max(0, min(int(no), len(group) - 1))
+
+        target = Path(str(name).replace("\\", "/")).name.lower()
+        target_stem = Path(target).stem
+        motions = self.json.get("motions") or {}
+        if not isinstance(motions, dict):
+            return None
+        for group_name, group in motions.items():
+            if not isinstance(group, list):
+                continue
+            for idx, item in enumerate(group):
+                if not isinstance(item, dict):
+                    continue
+                motion_file = Path(str(item.get("file", "")).replace("\\", "/")).name.lower()
+                if motion_file == target or Path(motion_file).stem == target_stem:
+                    return str(group_name), idx
+        return None
+
+    def _motion_group(self, name: str) -> list:
+        motions = self.json.get("motions") or {}
+        if not isinstance(motions, dict):
+            return []
+        group = motions.get(name) or []
+        return group if isinstance(group, list) else []
+
     def getHitAreaNum(self) -> int:
         hit_areas = self.json.get("hit_areas") or []
         return len(hit_areas) if isinstance(hit_areas, list) else 0
+
+
+class MotionPriority:
+    NONE = 0
+    IDLE = 1
+    NORMAL = 2
+    FORCE = 3
 
 
 class _MatrixManager:
@@ -101,6 +147,7 @@ class LuaLive2DModule:
         self._draw = None
         self._drag = None
         self._hit_test = None
+        self.MotionPriority = MotionPriority
 
     def init(self):
         return True
@@ -144,6 +191,20 @@ class LuaLive2DModule:
         self._draw = lua.eval(b"function(renderer, opts) return renderer:draw(opts) end")
         self._drag = lua.eval(b"function(renderer, x, y) return renderer:drag(x, y) end")
         self._hit_test = lua.eval(b"function(renderer, x, y) return renderer:hit_test(x, y) end")
+        self._start_motion = lua.eval(
+            b"function(renderer, name, no, priority) return renderer:start_motion(name, no, priority) end"
+        )
+        self._clear_motions = lua.eval(b"function(renderer) return renderer:clear_motions() end")
+        self._is_motion_finished = lua.eval(
+            b"function(renderer) "
+            b"local model = renderer:get_model(); "
+            b"return model == nil or model.mainMotionManager:isFinished(); "
+            b"end"
+        )
+        self._set_expression = lua.eval(
+            b"function(renderer, name) return renderer:set_expression(name) end"
+        )
+        self._reset_expression = lua.eval(b"function(renderer) return renderer:reset_expression() end")
         self._lua = lua
         self._initialized = True
 
@@ -190,11 +251,13 @@ class LuaLAppModel:
         self._height = 1
         self.modelSetting = None
         self.matrixManager = _MatrixManager()
+        self.expressions = {}
 
     def LoadModelJson(self, model_json_path: str, disable_precision=False):
         del disable_precision
         model_json = _load_model_json(model_json_path)
         self.modelSetting = _ModelSetting(model_json)
+        self.expressions = self._read_expression_names(model_json)
         self._renderer = self._module._new_renderer(self._width, self._height)
         opts = self._module._new_options(model_json_path)
         self._module._load_model(
@@ -234,6 +297,61 @@ class LuaLAppModel:
             return "hit" if len(hits) > 0 else None
         except Exception:
             return None
+
+    def StartMotion(self, name: str, no: int = 0, priority=MotionPriority.FORCE, **_kwargs):
+        if self._renderer is None:
+            return
+        resolved = self.modelSetting.resolveMotion(str(name), int(no)) if self.modelSetting else None
+        if resolved is None:
+            return
+        group_name, motion_no = resolved
+        self._module._start_motion(
+            self._renderer,
+            group_name.encode("utf-8"),
+            int(motion_no),
+            int(priority),
+        )
+
+    def StartRandomMotion(self, name: str | None = None, priority=MotionPriority.IDLE, **_kwargs):
+        if self.modelSetting is None:
+            return
+        if not name:
+            names = self.modelSetting.getMotionNames()
+            if not names:
+                return
+            name = random.choice(names)
+        count = self.modelSetting.getMotionNum(name)
+        if count <= 0:
+            return
+        self.StartMotion(name, random.randrange(count), priority)
+
+    def ClearMotions(self):
+        if self._renderer is not None:
+            self._module._clear_motions(self._renderer)
+
+    def IsMotionFinished(self) -> bool:
+        if self._renderer is None:
+            return True
+        return bool(self._module._is_motion_finished(self._renderer))
+
+    def SetExpression(self, name: str):
+        if self._renderer is not None:
+            self._module._set_expression(self._renderer, str(name).encode("utf-8"))
+
+    def ResetExpression(self):
+        if self._renderer is not None:
+            self._module._reset_expression(self._renderer)
+
+    @staticmethod
+    def _read_expression_names(model_json: dict) -> dict[str, None]:
+        expressions = model_json.get("expressions") or []
+        if not isinstance(expressions, list):
+            return {}
+        names = {}
+        for item in expressions:
+            if isinstance(item, dict) and item.get("name"):
+                names[str(item["name"])] = None
+        return names
 
 
 live2d = LuaLive2DModule()

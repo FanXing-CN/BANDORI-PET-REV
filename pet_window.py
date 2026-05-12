@@ -687,6 +687,11 @@ class PetWindow(QWidget):
                         matches.append(mname)
             if matches:
                 return random.choice(matches)
+            try:
+                if hasattr(model.modelSetting, "resolveMotion") and model.modelSetting.resolveMotion(tag, 0):
+                    return tag
+            except Exception:
+                pass
             return None
 
         tag_map = {
@@ -723,7 +728,7 @@ class PetWindow(QWidget):
         }
 
         if "." in normalized:
-            base = normalized.rsplit(".", 1)[0]
+            base, ext = normalized.rsplit(".", 1)
             exp = _find_expression(base)
             if exp:
                 try:
@@ -731,7 +736,11 @@ class PetWindow(QWidget):
                     self._schedule_default_expression_restore()
                 except Exception:
                     pass
-            return
+                return
+            if ext.lower() in {"mtn", "motion"}:
+                normalized = base
+            else:
+                return
 
         mapped = tag_map.get(normalized, normalized)
 
