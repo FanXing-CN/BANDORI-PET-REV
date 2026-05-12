@@ -83,6 +83,9 @@ build_exe_options = {
     ],
     "excludes": ["PyQt5", "PyQt6", "PySide2", "tkinter"],
     "include_msvcr": True,
+    
+    "zip_include_packages": ["*"], 
+    "zip_exclude_packages": [],
 }
 
 base = "Win32GUI" if sys.platform == "win32" else None
