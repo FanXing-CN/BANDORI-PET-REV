@@ -34,6 +34,7 @@ DEFAULTS = {
     "llm_aux_model_id": "",
     "user_name": "",
     "user_avatar_color": BANDORI_PRIMARY,
+    "chat_avatar_paths": {},
     "pov_mode": "off",
     "pov_custom_prompt": "",
     "pov_role_character": "",
@@ -71,6 +72,8 @@ class ConfigManager:
             except (json.JSONDecodeError, OSError):
                 pass
         self._normalize_models()
+        if not isinstance(self._data.get("chat_avatar_paths"), dict):
+            self._data["chat_avatar_paths"] = {}
         if self._data.get("user_avatar_color") == "#2aabee":
             self._data["user_avatar_color"] = BANDORI_PRIMARY
 
