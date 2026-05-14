@@ -535,6 +535,7 @@ class PetWindow(QWidget):
     def closeEvent(self, event):
         self._close_chat_process()
         self._close_compact_ai_window()
+        self._close_settings_process()
         self._save_config()
         app = QApplication.instance()
         if app is not None:
@@ -1097,7 +1098,7 @@ class PetWindow(QWidget):
             except json.JSONDecodeError:
                 pass
         elif line == "SHUTDOWN":
-            self.close()
+            self._quit()
 
     def _handle_ai_event(self, event: dict):
         if not isinstance(event, dict):
@@ -1164,6 +1165,18 @@ class PetWindow(QWidget):
         self._compact_ai_window.close()
         self._compact_ai_window.deleteLater()
         self._compact_ai_window = None
+
+    def _close_settings_process(self):
+        process = self._settings_process
+        if process is None:
+            return
+        if process.state() != QProcess.ProcessState.NotRunning:
+            process.terminate()
+            if not process.waitForFinished(1000):
+                process.kill()
+                process.waitForFinished(1000)
+        self._settings_process = None
+        process.deleteLater()
 
     def _ensure_compact_ai_window(self):
         if self._compact_ai_window is None:
@@ -1771,10 +1784,7 @@ class PetWindow(QWidget):
         QApplication.instance().removeEventFilter(self)
         self._close_chat_process()
         self._close_compact_ai_window()
-        if self._settings_process is not None and self._settings_process.state() != QProcess.ProcessState.NotRunning:
-            self._settings_process.terminate()
-            if not self._settings_process.waitForFinished(1000):
-                self._settings_process.kill()
+        self._close_settings_process()
         if self._tray_icon is not None:
             self._tray_icon.hide()
         QApplication.quit()

@@ -233,8 +233,9 @@ def main():
                 pass
             if process.state() != QProcess.ProcessState.NotRunning:
                 if force:
-                    process.kill()
-                    process.waitForFinished(1000)
+                    if not process.waitForFinished(1000):
+                        process.kill()
+                        process.waitForFinished(1000)
                 else:
                     process.terminate()
                     if not process.waitForFinished(100):
