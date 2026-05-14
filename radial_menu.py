@@ -1,6 +1,7 @@
 import math
 import ctypes
 import os
+import sys
 from dataclasses import dataclass
 
 if os.name == "nt":
@@ -172,12 +173,15 @@ class RadialMenu(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(
+        flags = (
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.Tool
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.NoDropShadowWindowHint
         )
+        if sys.platform.startswith("linux"):
+            flags |= Qt.WindowType.X11BypassWindowManagerHint
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
@@ -362,7 +366,13 @@ class RadialMenu(QWidget):
             item.widget.show()
 
         self.show()
-        self.setFocus()
+        if sys.platform.startswith("linux"):
+            self.raise_()
+            self.activateWindow()
+            QTimer.singleShot(0, self.raise_)
+            QTimer.singleShot(0, self.activateWindow)
+        else:
+            self.setFocus()
         self._play_show_animation()
 
     def _play_show_animation(self):
