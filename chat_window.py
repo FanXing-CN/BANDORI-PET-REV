@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QScrollArea, QSizePolicy, QToolButton, QMenu,
     QApplication, QGraphicsOpacityEffect, QWidgetAction,
-    QGraphicsColorizeEffect, QFrame, QFileDialog, QMessageBox,
+    QGraphicsColorizeEffect, QFrame, QFileDialog, QMessageBox, QSizeGrip,
 )
 
 from i18n_manager import tr as _tr
@@ -1248,6 +1248,7 @@ class ChatWindow(QWidget):
         self._shell = RoundedPanel(self)
         self._shell.setObjectName("ChatShell")
         main_layout.addWidget(self._shell)
+        self._resize_grip = None
 
         if self._is_group_chat:
             shell_layout = QHBoxLayout(self._shell)
@@ -1287,6 +1288,26 @@ class ChatWindow(QWidget):
         content_layout.addWidget(self._scroll, 1)
 
         content_layout.addWidget(self._build_input_area())
+
+        if self._is_group_chat:
+            self._resize_grip = QSizeGrip(self._shell)
+            self._resize_grip.setObjectName("GroupChatResizeGrip")
+            self._resize_grip.setFixedSize(18, 18)
+            self._resize_grip.raise_()
+            self._position_resize_grip()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_resize_grip()
+
+    def _position_resize_grip(self):
+        if not getattr(self, "_resize_grip", None):
+            return
+        margin = 6
+        self._resize_grip.move(
+            max(0, self._shell.width() - self._resize_grip.width() - margin),
+            max(0, self._shell.height() - self._resize_grip.height() - margin),
+        )
 
     def _build_group_sidebar(self):
         sidebar = RoundedPanel(self._shell)
