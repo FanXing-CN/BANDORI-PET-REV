@@ -1089,7 +1089,7 @@ class ChatWindow(QWidget):
     def _characters_for_group_key(self, group_key: str) -> list[str]:
         if not group_key.startswith("__group__:"):
             return []
-        allowed = set(self._available_group_characters)
+        allowed = set(self._model_manager.characters)
         return [character for character in group_key[len("__group__:"):].split("|") if character in allowed]
 
     def _group_display_name(self, characters: list[str]) -> str:
@@ -1125,6 +1125,16 @@ class ChatWindow(QWidget):
             entry["characters"] = characters
             entry["group_key"] = group_key
             result.append(entry)
+        live2d_characters = self._normalize_group_characters(self._available_group_characters)
+        live2d_key = self._conversation_key_for(live2d_characters)
+        if len(live2d_characters) > 1 and live2d_key not in seen:
+            result.insert(0, {
+                "group_key": live2d_key,
+                "conversation_id": "",
+                "content": "",
+                "created_at": "",
+                "characters": live2d_characters,
+            })
         return result
 
     def _new_group_conversation_id(self) -> str:
