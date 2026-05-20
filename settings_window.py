@@ -3009,6 +3009,7 @@ class SettingsWindow(QWidget):
 
     def _build_pov_page(self):
         page = self._make_theme_widget(QWidget())
+        page.setObjectName("povPage")
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
@@ -3151,10 +3152,14 @@ class SettingsWindow(QWidget):
 
     def _style_pov_page(self, page: QWidget):
         dark = isDarkTheme()
+        page_bg = _BG_DARK if dark else _BG_LIGHT
         panel_bg = "#252525" if dark else "#ffffff"
         panel_border = "#3b3b3b" if dark else "#e4d9df"
         text = "#d5dae5" if dark else "#4b5565"
         page.setStyleSheet(f"""
+            QWidget#povPage {{
+                background: {page_bg};
+            }}
             QWidget#povHintPanel {{
                 background: {panel_bg};
                 border: 1px solid {panel_border};
