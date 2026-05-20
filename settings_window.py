@@ -89,6 +89,7 @@ _ROLEPLAY_STATUS_TIPS = {
 
 PROJECT_REPO_URL = "https://github.com/HELPMEEADICE/BANDORI-PET-REV"
 PROJECT_LICENSE_URL = f"{PROJECT_REPO_URL}/blob/main/LICENSE"
+PROJECT_QQ_GROUP_URL = "https://qm.qq.com/q/VJMrn5EkWQ"
 CLICK_MOTION_CONFIG_FORMAT = "bandori-click-motion-actions"
 CLICK_MOTION_CONFIG_VERSION = 1
 CLICK_MOTION_SCOPE_ALL = "all_models"
@@ -4675,6 +4676,19 @@ class SettingsWindow(QWidget):
         btn_row.addWidget(license_btn)
         btn_row.addStretch()
         info_layout.addLayout(btn_row)
+
+        qq_group = "1046229865"
+        qq_row = QHBoxLayout()
+        qq_row.setContentsMargins(0, 2, 0, 0)
+        qq_row.setSpacing(10)
+        qq_label = BodyLabel(_tr("SettingsWindow.about_qq_group", qq_group=qq_group), info_card)
+        qq_label.setWordWrap(True)
+        qq_btn = TransparentPushButton(FluentIcon.PEOPLE, _tr("SettingsWindow.about_open_qq_group"), info_card)
+        qq_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(PROJECT_QQ_GROUP_URL)))
+        qq_row.addWidget(qq_label)
+        qq_row.addWidget(qq_btn)
+        qq_row.addStretch()
+        info_layout.addLayout(qq_row)
 
         tech = BodyLabel(_tr("SettingsWindow.about_tech"), page)
         tech.setObjectName("aboutTech")
