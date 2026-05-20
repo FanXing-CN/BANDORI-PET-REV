@@ -889,78 +889,132 @@ class Live2DPreviewBubble(QWidget):
 class NavButton(QPushButton):
     nav_activated = Signal(str)
 
-    def __init__(self, nav_key: str, icon, text: str, parent=None):
+    def __init__(self, nav_key: str, icon, text: str, parent=None, accent: str = BANDORI_PRIMARY):
         super().__init__(parent)
         self._nav_key = nav_key
+        self._custom_icon = icon if isinstance(icon, str) else ""
+        self._fluent_icon = icon if hasattr(icon, "icon") else None
+        self._fallback_icon = icon if isinstance(icon, QIcon) else QIcon()
+        self._accent = QColor(accent if QColor(accent).isValid() else BANDORI_PRIMARY)
+        self._hovered = False
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(44)
-        if hasattr(icon, 'icon'):
-            self.setIcon(icon.icon())
-        else:
-            self.setIcon(icon)
-        self.setText(f"  {text}")
+        self.setFixedHeight(46)
+        self.setText(text)
         self.setCheckable(True)
+        self.setIconSize(QSize(18, 18))
         self._update_stylesheet()
         qconfig.themeChanged.connect(self._update_stylesheet)
         self.clicked.connect(lambda: self.nav_activated.emit(self._nav_key))
 
     def enterEvent(self, event):
-        if not self._checking_hover_effect():
-            self._apply_hover_effect(True)
+        self._hovered = True
+        self.update()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        self._apply_hover_effect(False)
+        self._hovered = False
+        self.update()
         super().leaveEvent(event)
 
-    def _checking_hover_effect(self):
-        eff = self.graphicsEffect()
-        return isinstance(eff, QGraphicsColorizeEffect) and eff.strength() > 0.0
-
-    def _apply_hover_effect(self, entering: bool):
-        eff = self.graphicsEffect()
-        if not isinstance(eff, QGraphicsColorizeEffect):
-            eff = QGraphicsColorizeEffect(self)
-            eff.setColor(QColor(BANDORI_PRIMARY_DARK))
-            eff.setStrength(0.0)
-            self.setGraphicsEffect(eff)
-        if hasattr(self, '_hover_anim'):
-            self._hover_anim.stop()
-        self._hover_anim = QPropertyAnimation(eff, b"strength")
-        self._hover_anim.setDuration(180)
-        self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._hover_anim.setStartValue(eff.strength())
-        self._hover_anim.setEndValue(0.35 if entering else 0.0)
-        if not entering:
-            self._hover_anim.finished.connect(lambda: self.setGraphicsEffect(None))
-        self._hover_anim.start()
-
     def _update_stylesheet(self):
+        self.setStyleSheet("QPushButton { border: none; background: transparent; }")
+        self.update()
+
+    def paintEvent(self, event):
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
         dark = isDarkTheme()
-        bg = "#2a2a2a" if dark else "#fafafa"
-        hover_bg = "#3a3a3a" if dark else "#f3e3e9"
-        checked_bg = BANDORI_PRIMARY_SOFT_DARK if dark else BANDORI_PRIMARY_SOFT
-        text_color = "#e0e0e0" if dark else "#2a2a2a"
-        checked_text = BANDORI_PRIMARY_DARK if dark else BANDORI_PRIMARY
-        border = "1px solid transparent" if dark else "1px solid #e0e0e0"
-        self.setStyleSheet(f"""
-            QPushButton {{
-                text-align: left;
-                padding: 8px 14px;
-                border: {border};
-                border-radius: 8px;
-                background: {bg};
-                font-size: 14px;
-                color: {text_color};
-            }}
-            QPushButton:hover {{
-                background: {hover_bg};
-            }}
-            QPushButton:checked {{
-                background: {checked_bg};
-                color: {checked_text};
-            }}
-        """)
+        checked = self.isChecked()
+        accent = QColor(self._accent)
+        if dark:
+            accent = accent.lighter(118)
+
+        bg = QColor("#2a272b" if dark else "#ffffff")
+        hover_bg = QColor("#332b31" if dark else "#fff6f9")
+        checked_bg = QColor(accent)
+        checked_bg.setAlpha(48 if dark else 28)
+        border = QColor("#40373f" if dark else "#ece5ea")
+        checked_border = QColor(accent)
+        checked_border.setAlpha(170)
+        text = QColor("#ece7ee" if dark else "#242832")
+        checked_text = QColor(accent)
+        muted_text = QColor("#cfc6d0" if dark else "#4f5968")
+
+        rect = QRectF(self.rect()).adjusted(2, 1, -2, -1)
+        painter.setPen(QPen(checked_border if checked else border, 1))
+        painter.setBrush(QBrush(checked_bg if checked else hover_bg if self._hovered else bg))
+        painter.drawRoundedRect(rect, 9, 9)
+
+        plate_rect = QRectF(12, (self.height() - 28) / 2, 28, 28)
+        plate = QColor(accent)
+        plate.setAlpha(236 if checked else 38 if not dark else 52)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(plate))
+        painter.drawRoundedRect(plate_rect, 8, 8)
+
+        icon_color = QColor("#ffffff") if checked else QColor(accent)
+        icon_rect = QRect(
+            int(plate_rect.x() + 5),
+            int(plate_rect.y() + 5),
+            18,
+            18,
+        )
+        if self._custom_icon == "avatar":
+            self._paint_avatar_icon(painter, QRectF(icon_rect), icon_color)
+        elif self._fluent_icon is not None:
+            self._fluent_icon.icon(color=icon_color).paint(painter, icon_rect)
+        else:
+            self._fallback_icon.paint(painter, icon_rect)
+
+        font = QFont(self.font())
+        font.setPointSize(10)
+        font.setWeight(QFont.Weight.DemiBold if checked else QFont.Weight.Medium)
+        painter.setFont(font)
+        painter.setPen(checked_text if checked else muted_text if self._hovered else text)
+        text_rect = QRect(50, 0, max(1, self.width() - 58), self.height())
+        label = painter.fontMetrics().elidedText(self.text(), Qt.TextElideMode.ElideRight, text_rect.width())
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, label)
+
+    @staticmethod
+    def _paint_avatar_icon(painter: QPainter, rect: QRectF, color: QColor):
+        painter.save()
+        pen = QPen(color, max(2, int(round(rect.width() * 0.12))))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        head_size = rect.width() * 0.38
+        head = QRectF(
+            rect.center().x() - head_size / 2,
+            rect.top() + rect.height() * 0.13,
+            head_size,
+            head_size,
+        )
+        painter.drawEllipse(head)
+
+        shoulders = QPainterPath()
+        shoulders.moveTo(rect.left() + rect.width() * 0.18, rect.bottom() - rect.height() * 0.12)
+        shoulders.cubicTo(
+            rect.left() + rect.width() * 0.26,
+            rect.top() + rect.height() * 0.62,
+            rect.left() + rect.width() * 0.38,
+            rect.top() + rect.height() * 0.57,
+            rect.center().x(),
+            rect.top() + rect.height() * 0.57,
+        )
+        shoulders.cubicTo(
+            rect.left() + rect.width() * 0.62,
+            rect.top() + rect.height() * 0.57,
+            rect.left() + rect.width() * 0.74,
+            rect.top() + rect.height() * 0.62,
+            rect.right() - rect.width() * 0.18,
+            rect.bottom() - rect.height() * 0.12,
+        )
+        painter.drawPath(shoulders)
+        painter.restore()
 
 
 class SettingsWindow(QWidget):
@@ -1015,6 +1069,7 @@ class SettingsWindow(QWidget):
         self._memory_items: list[dict] = []
         self._selected_memory_id = 0
         self._compact_window_page = None
+        self._chat_integration_page = None
         self._mcp_computer_page = None
         self._quality_page = None
         self._about_page = None
@@ -1335,6 +1390,9 @@ class SettingsWindow(QWidget):
         if key == "compact_window":
             self._compact_window_page = self._add_lazy_page("compact_window", self._build_compact_window_page())
             return self._compact_window_page
+        if key == "chat_integration":
+            self._chat_integration_page = self._add_lazy_page("chat_integration", self._build_chat_integration_page())
+            return self._chat_integration_page
         if key == "mcp_computer":
             self._mcp_computer_page = self._add_lazy_page("mcp_computer", self._build_mcp_computer_page())
             return self._mcp_computer_page
@@ -1387,64 +1445,77 @@ class SettingsWindow(QWidget):
         brand_row.addWidget(title, 1)
         layout.addLayout(brand_row)
 
-        btn_chars = NavButton("characters", FluentIcon.EMOJI_TAB_SYMBOLS, _tr("SettingsWindow.nav_chars"), sidebar)
+        btn_chars = NavButton("characters", FluentIcon.PEOPLE, _tr("SettingsWindow.nav_chars"), sidebar, "#e4004f")
         btn_chars.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["characters"] = btn_chars
         layout.addWidget(btn_chars)
 
-        btn_llm = NavButton("llm", FluentIcon.ROBOT, _tr("SettingsWindow.nav_llm"), sidebar)
+        btn_llm = NavButton("llm", FluentIcon.ROBOT, _tr("SettingsWindow.nav_llm"), sidebar, "#8b5cf6")
         btn_llm.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["llm"] = btn_llm
         layout.addWidget(btn_llm)
 
-        btn_tts = NavButton("tts", FluentIcon.ROBOT, _tr("SettingsWindow.nav_tts", "TTS 配置"), sidebar)
+        btn_tts = NavButton("tts", FluentIcon.MICROPHONE, _tr("SettingsWindow.nav_tts", "TTS 配置"), sidebar, "#f59e0b")
         btn_tts.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["tts"] = btn_tts
         layout.addWidget(btn_tts)
 
-        btn_pov = NavButton("pov", FluentIcon.PEOPLE, _tr("SettingsWindow.nav_pov"), sidebar)
+        btn_pov = NavButton("pov", "avatar", _tr("SettingsWindow.nav_pov"), sidebar, "#ec4899")
         btn_pov.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["pov"] = btn_pov
         layout.addWidget(btn_pov)
 
-        btn_memory = NavButton("memory", FluentIcon.HISTORY, _tr("SettingsWindow.nav_memory"), sidebar)
+        btn_memory = NavButton("memory", FluentIcon.LIBRARY, _tr("SettingsWindow.nav_memory"), sidebar, "#10b981")
         btn_memory.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["memory"] = btn_memory
         layout.addWidget(btn_memory)
 
         btn_relationship_guide = NavButton(
             "relationship_guide",
-            FluentIcon.INFO,
+            FluentIcon.QUICK_NOTE,
             _tr("SettingsWindow.nav_relationship_guide"),
             sidebar,
+            "#06b6d4",
         )
         btn_relationship_guide.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["relationship_guide"] = btn_relationship_guide
         layout.addWidget(btn_relationship_guide)
 
-        btn_compact = NavButton("compact_window", FluentIcon.ROBOT, _tr("SettingsWindow.nav_compact_window"), sidebar)
+        btn_compact = NavButton("compact_window", FluentIcon.CHAT, _tr("SettingsWindow.nav_compact_window"), sidebar, "#3b82f6")
         btn_compact.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["compact_window"] = btn_compact
         layout.addWidget(btn_compact)
 
+        btn_chat_integration = NavButton(
+            "chat_integration",
+            FluentIcon.MESSAGE,
+            _tr("SettingsWindow.nav_chat_integration", default="聊天接入"),
+            sidebar,
+            "#14b8a6",
+        )
+        btn_chat_integration.nav_activated.connect(self._on_nav_selected)
+        self._nav_buttons["chat_integration"] = btn_chat_integration
+        layout.addWidget(btn_chat_integration)
+
         btn_mcp_computer = NavButton(
             "mcp_computer",
-            FluentIcon.ROBOT,
+            FluentIcon.DEVELOPER_TOOLS,
             _tr("SettingsWindow.nav_mcp_computer", default="工具与电脑控制"),
             sidebar,
+            "#64748b",
         )
         btn_mcp_computer.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["mcp_computer"] = btn_mcp_computer
         layout.addWidget(btn_mcp_computer)
 
-        btn_quality = NavButton("quality", FluentIcon.PHOTO, _tr("SettingsWindow.nav_quality"), sidebar)
+        btn_quality = NavButton("quality", FluentIcon.PALETTE, _tr("SettingsWindow.nav_quality"), sidebar, "#22c55e")
         btn_quality.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["quality"] = btn_quality
         layout.addWidget(btn_quality)
 
         layout.addStretch()
 
-        btn_about = NavButton("about", FluentIcon.INFO, _tr("SettingsWindow.nav_about"), sidebar)
+        btn_about = NavButton("about", FluentIcon.INFO, _tr("SettingsWindow.nav_about"), sidebar, "#94a3b8")
         btn_about.nav_activated.connect(self._on_nav_selected)
         self._nav_buttons["about"] = btn_about
         layout.addWidget(btn_about)
@@ -2614,6 +2685,11 @@ class SettingsWindow(QWidget):
         layout.addWidget(title)
         subtitle = _wrap_label(SubtitleLabel(_tr("SettingsWindow.llm_subtitle"), page))
         layout.addWidget(subtitle)
+        capability_hint = _wrap_label(BodyLabel(_tr(
+            "SettingsWindow.llm_capability_hint",
+            default="提示：图片理解、联网搜索、MCP 和 Computer Use 等能力，只有在当前模型支持多模态输入或工具调用时才会实际生效。",
+        ), page))
+        layout.addWidget(capability_hint)
 
         profile_label = BodyLabel(_tr("SettingsWindow.llm_api_profile", default="API 配置档案"), page)
         layout.addWidget(profile_label)
@@ -3921,12 +3997,168 @@ class SettingsWindow(QWidget):
         self._style_compact_color_buttons(self._compact_text_color_btns)
         self._compact_window_reset_position_pending = True
 
+    def _build_chat_integration_page(self):
+        page = self._make_theme_widget(QWidget())
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        title = TitleLabel(_tr("SettingsWindow.chat_integration_title", default="聊天接入"), page)
+        layout.addWidget(title)
+        subtitle = SubtitleLabel(_tr(
+            "SettingsWindow.chat_integration_subtitle",
+            default="接收外部聊天软件或脚本推送的消息，写入本地上下文，并在桌宠悬浮窗显示未读摘要。",
+        ), page)
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
+        self._chat_integration_enabled = SwitchButton(page)
+        self._add_switch_row(
+            layout,
+            page,
+            _tr("SettingsWindow.chat_integration_enabled", default="启用本地聊天接入端口"),
+            self._chat_integration_enabled,
+        )
+
+        self._chat_integration_overlay_enabled = SwitchButton(page)
+        self._add_switch_row(
+            layout,
+            page,
+            _tr("SettingsWindow.chat_integration_overlay_enabled", default="收到消息时显示悬浮窗摘要"),
+            self._chat_integration_overlay_enabled,
+        )
+
+        self._chat_integration_include_context = SwitchButton(page)
+        self._add_switch_row(
+            layout,
+            page,
+            _tr("SettingsWindow.chat_integration_include_context", default="允许模型读取最近外部聊天上下文"),
+            self._chat_integration_include_context,
+        )
+
+        endpoint_row = QHBoxLayout()
+        endpoint_row.setContentsMargins(0, 0, 0, 0)
+        endpoint_row.setSpacing(8)
+        self._chat_integration_port_input = LineEdit(page)
+        self._chat_integration_port_input.setFixedWidth(120)
+        self._chat_integration_port_input.setFixedHeight(36)
+        self._chat_integration_port_input.setValidator(QIntValidator(1024, 65535, self))
+        self._chat_integration_port_input.setPlaceholderText("38473")
+        token_label = BodyLabel(_tr("SettingsWindow.chat_integration_token", default="Token"), page)
+        self._chat_integration_token_input = LineEdit(page)
+        self._chat_integration_token_input.setFixedHeight(36)
+        self._chat_integration_token_input.setPlaceholderText(_tr(
+            "SettingsWindow.chat_integration_token_placeholder",
+            default="可留空；给第三方脚本使用时建议填写",
+        ))
+        endpoint_row.addWidget(BodyLabel(_tr("SettingsWindow.chat_integration_port_number", default="端口"), page))
+        endpoint_row.addWidget(self._chat_integration_port_input)
+        endpoint_row.addSpacing(12)
+        endpoint_row.addWidget(token_label)
+        endpoint_row.addWidget(self._chat_integration_token_input, 1)
+        layout.addLayout(endpoint_row)
+
+        hint = BodyLabel(_tr(
+            "SettingsWindow.chat_integration_hint",
+            default="开启后监听 127.0.0.1，接收 POST /chat-events 的 JSON。外部消息会进入本地数据库；开启上下文后，下一次角色聊天会看到最近消息。",
+        ), page)
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 0, 0, 0)
+        save_btn = PrimaryPushButton(FluentIcon.ACCEPT, _tr("SettingsWindow.chat_integration_save", default="保存聊天接入配置"), page)
+        save_btn.clicked.connect(lambda: self._save_chat_integration_config(show_info=True, emit_update=True))
+        btn_row.addWidget(save_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        apply_hint = BodyLabel(_tr(
+            "SettingsWindow.chat_integration_apply_hint",
+            default="保存后请点击右侧“应用”或重启桌宠，让端口启动或刷新。",
+        ), page)
+        apply_hint.setWordWrap(True)
+        layout.addWidget(apply_hint)
+        layout.addStretch()
+
+        self._load_chat_integration_config()
+        return page
+
+    def _chat_integration_widgets_ready(self) -> bool:
+        return all(
+            hasattr(self, attr)
+            for attr in (
+                "_chat_integration_enabled",
+                "_chat_integration_overlay_enabled",
+                "_chat_integration_include_context",
+                "_chat_integration_port_input",
+                "_chat_integration_token_input",
+            )
+        )
+
+    def _load_chat_integration_config(self):
+        if not self._cfg or not self._chat_integration_widgets_ready():
+            return
+        self._chat_integration_enabled.setChecked(bool(self._cfg.get("chat_integration_enabled", False)))
+        self._chat_integration_overlay_enabled.setChecked(bool(self._cfg.get("chat_integration_overlay_enabled", True)))
+        self._chat_integration_include_context.setChecked(bool(self._cfg.get("chat_integration_include_context", True)))
+        self._chat_integration_port_input.setText(str(self._clamp_chat_integration_port(self._cfg.get("chat_integration_port", 38473))))
+        self._chat_integration_token_input.setText(str(self._cfg.get("chat_integration_token", "") or ""))
+
+    def _chat_integration_settings_data(self) -> dict:
+        if not self._cfg:
+            return {}
+        return {
+            "chat_integration_enabled": self._cfg.get("chat_integration_enabled", False),
+            "chat_integration_overlay_enabled": self._cfg.get("chat_integration_overlay_enabled", True),
+            "chat_integration_include_context": self._cfg.get("chat_integration_include_context", True),
+            "chat_integration_port": self._clamp_chat_integration_port(self._cfg.get("chat_integration_port", 38473)),
+            "chat_integration_token": self._cfg.get("chat_integration_token", ""),
+        }
+
+    def _save_chat_integration_config(self, show_info: bool = True, emit_update: bool = False):
+        if not self._cfg or not self._chat_integration_widgets_ready():
+            return
+        self._cfg.set("chat_integration_enabled", self._chat_integration_enabled.isChecked())
+        self._cfg.set("chat_integration_overlay_enabled", self._chat_integration_overlay_enabled.isChecked())
+        self._cfg.set("chat_integration_include_context", self._chat_integration_include_context.isChecked())
+        self._cfg.set("chat_integration_port", self._clamp_chat_integration_port(self._chat_integration_port_input.text()))
+        self._cfg.set("chat_integration_token", self._chat_integration_token_input.text().strip())
+        try:
+            self._cfg.save()
+            if emit_update:
+                self.settings_changed.emit(self._chat_integration_settings_data())
+            if show_info:
+                InfoBar.success(
+                    _tr("SettingsWindow.chat_integration_saved_title", default="已保存"),
+                    _tr("SettingsWindow.chat_integration_saved_content", default="聊天接入配置已保存。"),
+                    duration=2000,
+                    position=InfoBarPosition.TOP,
+                    parent=self,
+                )
+        except Exception as exc:
+            InfoBar.error(
+                _tr("SettingsWindow.chat_integration_failed_title", default="保存失败"),
+                str(exc),
+                duration=3000,
+                position=InfoBarPosition.TOP,
+                parent=self,
+            )
+
     @staticmethod
     def _clamp_ai_status_port(value) -> int:
         try:
             port = int(value)
         except (TypeError, ValueError):
             port = 38472
+        return max(1024, min(65535, port))
+
+    @staticmethod
+    def _clamp_chat_integration_port(value) -> int:
+        try:
+            port = int(value)
+        except (TypeError, ValueError):
+            port = 38473
         return max(1024, min(65535, port))
 
     def _build_mcp_computer_page(self):
@@ -3942,6 +4174,11 @@ class SettingsWindow(QWidget):
             default="支持服务商原生 MCP，也支持 Chat Completions 的 tool_calls/function calling，把 MCP 和 Computer Use 转成兼容工具。",
         ), page))
         layout.addWidget(subtitle)
+        capability_hint = _wrap_label(BodyLabel(_tr(
+            "SettingsWindow.mcp_capability_hint",
+            default="提示：启用 MCP 或 Computer Use 只是把工具提供给模型；必须使用支持 tool_calls/function calling 的模型才会调用工具，截图理解还需要模型支持多模态输入。",
+        ), page))
+        layout.addWidget(capability_hint)
 
         risk_panel = QWidget(page)
         risk_panel.setObjectName("mcpRiskPanel")
@@ -4160,7 +4397,7 @@ class SettingsWindow(QWidget):
         except json.JSONDecodeError as exc:
             InfoBar.error(
                 _tr("SettingsWindow.mcp_json_invalid_title", default="MCP JSON 有误"),
-                _tr("SettingsWindow.mcp_json_invalid_content", default=f"请检查 JSON 格式：{exc}"),
+                _tr("SettingsWindow.mcp_json_invalid_content", default="请检查 JSON 格式：{error}", error=str(exc)),
                 duration=3500,
                 position=InfoBarPosition.TOP,
                 parent=self,
@@ -5678,6 +5915,15 @@ class SettingsWindow(QWidget):
 
     def _remove_model_list_item(self, character: str):
         self._activate_char_page_for_model_list()
+        if len(self._configured_models) <= 1:
+            InfoBar.warning(
+                _tr("SettingsWindow.model_list_keep_one_title"),
+                _tr("SettingsWindow.model_list_keep_one_content"),
+                duration=2500,
+                position=InfoBarPosition.TOP,
+                parent=self,
+            )
+            return
         self._configured_models = [item for item in self._configured_models if item["character"] != character]
         self._editing_list_character = ""
         self._editing_model_index = None
@@ -5931,6 +6177,7 @@ class SettingsWindow(QWidget):
             return
         self._save_llm_config(show_info=False)
         self._save_compact_window_config(show_info=False, emit_update=False)
+        self._save_chat_integration_config(show_info=False, emit_update=False)
         self._save_mcp_computer_config(show_info=False)
         self._save_configured_models()
         settings = {
@@ -5954,6 +6201,11 @@ class SettingsWindow(QWidget):
             "ai_status_port_enabled": self._cfg.get("ai_status_port_enabled", False) if self._cfg else False,
             "ai_status_port": self._clamp_ai_status_port(self._cfg.get("ai_status_port", 38472)) if self._cfg else 38472,
             "ai_status_token": self._cfg.get("ai_status_token", "") if self._cfg else "",
+            "chat_integration_enabled": self._cfg.get("chat_integration_enabled", False) if self._cfg else False,
+            "chat_integration_overlay_enabled": self._cfg.get("chat_integration_overlay_enabled", True) if self._cfg else True,
+            "chat_integration_include_context": self._cfg.get("chat_integration_include_context", True) if self._cfg else True,
+            "chat_integration_port": self._clamp_chat_integration_port(self._cfg.get("chat_integration_port", 38473)) if self._cfg else 38473,
+            "chat_integration_token": self._cfg.get("chat_integration_token", "") if self._cfg else "",
             "user_avatar_color": self._cfg.get("user_avatar_color", BANDORI_PRIMARY) if self._cfg else BANDORI_PRIMARY,
             "user_avatar_path": self._cfg.get("user_avatar_path", "") if self._cfg else "",
             "models": [dict(item) for item in self._configured_models],
