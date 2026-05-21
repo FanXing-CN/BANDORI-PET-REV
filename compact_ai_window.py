@@ -850,6 +850,8 @@ class CompactAIWindow(QWidget):
             "llm_api_url",
             "llm_api_key",
             "llm_model_id",
+            "llm_aux_api_url",
+            "llm_aux_api_key",
             "llm_aux_model_id",
             "llm_aux_enable_thinking",
             "llm_aux_vision_fallback_enabled",
@@ -1069,6 +1071,8 @@ class CompactAIWindow(QWidget):
             "llm_api_url",
             "llm_api_key",
             "llm_model_id",
+            "llm_aux_api_url",
+            "llm_aux_api_key",
             "llm_aux_model_id",
             "llm_aux_enable_thinking",
         )
