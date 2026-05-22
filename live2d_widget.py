@@ -56,6 +56,8 @@ class Live2DWidget(QOpenGLWidget):
         self._clear_color = (0.0, 0.0, 0.0, 0.0)
         self._lip_sync_level = 0.0
         self._lip_sync_target = 0.0
+        self._lip_sync_form = 0.0
+        self._lip_sync_form_target = 0.0
         self._lip_sync_last_ms = -1000
         self._hit_alpha_threshold = 8
         self._hit_probe_offsets = (
@@ -164,7 +166,11 @@ class Live2DWidget(QOpenGLWidget):
         self.update()
 
     def set_lip_sync_level(self, level: float):
+        self.set_lip_sync_pose(level, self._lip_sync_form_target)
+
+    def set_lip_sync_pose(self, level: float, form: float = 0.0):
         self._lip_sync_target = max(0.0, min(float(level), 0.55))
+        self._lip_sync_form_target = max(-1.0, min(float(form), 1.0))
         self._lip_sync_last_ms = self._hit_clock.elapsed() if self._hit_clock.isValid() else 0
         self.update()
 
@@ -512,11 +518,16 @@ class Live2DWidget(QOpenGLWidget):
             return
         now = self._hit_clock.elapsed() if self._hit_clock.isValid() else 0
         target = self._lip_sync_target if now - self._lip_sync_last_ms <= 180 else 0.0
+        form_target = self._lip_sync_form_target if now - self._lip_sync_last_ms <= 180 else 0.0
         self._lip_sync_level += (target - self._lip_sync_level) * 0.55
+        self._lip_sync_form += (form_target - self._lip_sync_form) * 0.45
         if self._lip_sync_level < 0.01:
             self._lip_sync_level = 0.0
+        if abs(self._lip_sync_form) < 0.01:
+            self._lip_sync_form = 0.0
         try:
             self._model.SetParameterValue("PARAM_MOUTH_OPEN_Y", self._lip_sync_level, 1.0)
+            self._model.SetParameterValue("PARAM_MOUTH_FORM", self._lip_sync_form, 1.0)
         except Exception:
             pass
 

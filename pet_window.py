@@ -1474,10 +1474,12 @@ class PetWindow(QWidget):
             elif len(parts) == 2:
                 self._on_chat_action(parts[1])
         elif line.startswith("LIP\t"):
-            parts = line.split("\t", 2)
-            if len(parts) == 3 and parts[1] == self._current_char:
+            parts = line.split("\t")
+            if len(parts) >= 3 and parts[1] == self._current_char:
                 try:
-                    self._live2d_widget.set_lip_sync_level(float(parts[2]))
+                    level = float(parts[2])
+                    form = float(parts[3]) if len(parts) >= 4 else 0.0
+                    self._live2d_widget.set_lip_sync_pose(level, form)
                 except ValueError:
                     pass
         elif line.startswith("SETTINGS\t"):

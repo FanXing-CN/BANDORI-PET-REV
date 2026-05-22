@@ -63,7 +63,9 @@ except (ImportError, OSError):
     class TTSPlayer(QObject):
         error = Signal(str)
         level_changed = Signal(float)
+        mouth_pose_changed = Signal(float, float)
         playback_finished = Signal()
+        def prepare_lip_sync_text(self, text, language=""): pass
         def enqueue(self, audio, media_type): pass
         def stop(self): pass
         def is_idle(self): return True
@@ -1732,7 +1734,7 @@ class ChatWindow(QWidget):
         self._tts_playing_sequence: int | None = None
         self._tts_max_parallel = 1
         self._tts_player = TTSPlayer(self)
-        self._tts_player.level_changed.connect(self._on_tts_level_changed)
+        self._tts_player.mouth_pose_changed.connect(self._on_tts_mouth_pose_changed)
         self._tts_player.playback_finished.connect(self._on_tts_playback_finished)
         self._pending_actions.clear()
         self._seen_actions.clear()
@@ -4683,6 +4685,12 @@ class ChatWindow(QWidget):
     def _on_tts_audio_ready(self, sequence: int, generation: int, audio: bytes, media_type: str):
         if generation != self._tts_generation or sequence not in self._tts_active_workers:
             return
+        worker = self._tts_active_workers.get(sequence)
+        if worker is not None:
+            self._tts_player.prepare_lip_sync_text(
+                getattr(worker, "prepared_text", ""),
+                getattr(worker, "prepared_language", ""),
+            )
         if sequence < self._tts_next_play_sequence:
             return
         if sequence == self._tts_next_play_sequence:
@@ -4697,10 +4705,10 @@ class ChatWindow(QWidget):
     def _on_tts_error(self, error_msg: str):
         del error_msg
 
-    def _on_tts_level_changed(self, level: float):
+    def _on_tts_mouth_pose_changed(self, level: float, form: float):
         character = self._tts_characters.get(self._tts_playing_sequence)
         if character:
-            publish_lip_sync(character, level)
+            publish_lip_sync(character, level, form)
 
     def _on_tts_playback_finished(self):
         self._release_tts_audio_in_order()
