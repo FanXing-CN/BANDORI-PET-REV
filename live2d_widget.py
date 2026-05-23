@@ -505,19 +505,15 @@ class Live2DWidget(QOpenGLWidget):
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendEquationSeparate(gl.GL_FUNC_ADD, gl.GL_FUNC_ADD)
 
-        self._live2d.clearBuffer()
         gl.glClearColor(*self._clear_color)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
-        
-        self._model.Update()
+
         self._apply_lip_sync()
         self._model.Draw()
         if self._static_render:
             self._static_render_done = True
 
     def _apply_lip_sync(self):
-        if not self._model:
-            return
         now = self._hit_clock.elapsed() if self._hit_clock.isValid() else 0
         target = self._lip_sync_target if now - self._lip_sync_last_ms <= 180 else 0.0
         form_target = self._lip_sync_form_target if now - self._lip_sync_last_ms <= 180 else 0.0

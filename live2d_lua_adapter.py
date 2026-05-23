@@ -268,9 +268,6 @@ class LuaLive2DModule:
     def glInit(self):
         self._ensure_runtime()
 
-    def clearBuffer(self):
-        return True
-
     def dispose(self):
         if self._embed is not None:
             try:
@@ -426,9 +423,6 @@ class LuaLAppModel:
         self.matrixManager.on_resize(self._width, self._height)
         if self._renderer is not None:
             self._module._resize(self._renderer, self._width, self._height)
-
-    def Update(self):
-        return True
 
     def Draw(self):
         if self._renderer is None:
