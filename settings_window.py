@@ -2789,6 +2789,14 @@ class SettingsWindow(QWidget):
         fetch_btn.clicked.connect(lambda: self._fetch_models(self._llm_model_id))
         model_row.addWidget(fetch_btn)
         layout.addLayout(model_row)
+        (
+            self._llm_primary_model_combo_label,
+            self._llm_primary_model_scroll,
+            self._llm_primary_model_list,
+            self._llm_primary_model_list_layout,
+        ) = self._create_llm_model_picker(page)
+        layout.addWidget(self._llm_primary_model_combo_label)
+        layout.addWidget(self._llm_primary_model_scroll)
 
         aux_api_url_label = BodyLabel(_tr("SettingsWindow.llm_aux_api_url", default="辅助模型 API 地址"), page)
         layout.addWidget(aux_api_url_label)
@@ -2824,6 +2832,14 @@ class SettingsWindow(QWidget):
         aux_fetch_btn.clicked.connect(lambda: self._fetch_models(self._llm_aux_model_id))
         aux_model_row.addWidget(aux_fetch_btn)
         layout.addLayout(aux_model_row)
+        (
+            self._llm_aux_model_combo_label,
+            self._llm_aux_model_scroll,
+            self._llm_aux_model_list,
+            self._llm_aux_model_list_layout,
+        ) = self._create_llm_model_picker(page)
+        layout.addWidget(self._llm_aux_model_combo_label)
+        layout.addWidget(self._llm_aux_model_scroll)
 
         aux_thinking_label = BodyLabel(_tr("SettingsWindow.llm_aux_enable_thinking"), page)
         layout.addWidget(aux_thinking_label)
@@ -2914,24 +2930,25 @@ class SettingsWindow(QWidget):
             default="@stop / @停止 / @中断：强制中断当前模型输出。好感度、记忆和关系数值命令在“好感度 / 记忆”页说明。",
         ), page)))
 
-        self._llm_model_combo_label = BodyLabel(_tr("SettingsWindow.llm_available_models"), page)
-        self._llm_model_combo_label.hide()
-        layout.addWidget(self._llm_model_combo_label)
-
-        self._llm_model_scroll = ScrollArea()
-        self._llm_model_scroll.setWidgetResizable(True)
-        self._llm_model_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        self._llm_model_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._llm_model_scroll.setMinimumHeight(80)
-        self._llm_model_scroll.setMaximumHeight(220)
-        self._llm_model_scroll.hide()
-
-        self._llm_model_list = QWidget(page)
-        self._llm_model_list_layout = QVBoxLayout(self._llm_model_list)
-        self._llm_model_list_layout.setContentsMargins(0, 4, 0, 4)
-        self._llm_model_list_layout.setSpacing(2)
-        self._llm_model_scroll.setWidget(self._llm_model_list)
-        layout.addWidget(self._llm_model_scroll)
+        custom_system_label = BodyLabel(_tr(
+            "SettingsWindow.llm_custom_system_prompt",
+            default="最高优先级系统提示词",
+        ), page)
+        layout.addWidget(custom_system_label)
+        self._llm_custom_system_prompt = FluentContextTextEdit(page)
+        self._llm_custom_system_prompt.setPlaceholderText(_tr(
+            "SettingsWindow.llm_custom_system_prompt_placeholder",
+            default="留空则不启用。这里的内容会在每次聊天请求中置于角色设定之前。",
+        ))
+        self._llm_custom_system_prompt.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self._llm_custom_system_prompt.setMinimumHeight(72)
+        self._llm_custom_system_prompt.setMaximumHeight(120)
+        layout.addWidget(self._llm_custom_system_prompt)
+        custom_system_hint = _wrap_label(BodyLabel(_tr(
+            "SettingsWindow.llm_custom_system_prompt_hint",
+            default="这段指令优先级高于角色档案、长期记忆和会话历史；建议只写全局行为约束，避免与角色身份或动作标签规则冲突。",
+        ), page))
+        layout.addWidget(custom_system_hint)
 
         data_title = SubtitleLabel(_tr("SettingsWindow.chat_data_title"), page)
         layout.addWidget(data_title)
@@ -2978,6 +2995,25 @@ class SettingsWindow(QWidget):
         qconfig.themeChanged.connect(self._style_llm_inputs)
 
         return page
+
+    def _create_llm_model_picker(self, parent: QWidget):
+        label = BodyLabel(_tr("SettingsWindow.llm_available_models"), parent)
+        label.hide()
+
+        scroll = ScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setMinimumHeight(80)
+        scroll.setMaximumHeight(220)
+        scroll.hide()
+
+        list_widget = QWidget(parent)
+        list_layout = QVBoxLayout(list_widget)
+        list_layout.setContentsMargins(0, 4, 0, 4)
+        list_layout.setSpacing(2)
+        scroll.setWidget(list_widget)
+        return label, scroll, list_widget, list_layout
 
     def _build_tts_page(self):
         page = self._make_theme_widget(QWidget())
@@ -5337,6 +5373,7 @@ class SettingsWindow(QWidget):
                 "_llm_web_search_enabled",
                 "_llm_web_search_engine",
                 "_llm_web_search_show_sources",
+                "_llm_custom_system_prompt",
                 "_llm_enable_thinking",
                 "_llm_show_reasoning",
                 "_user_name",
@@ -5416,6 +5453,7 @@ class SettingsWindow(QWidget):
         self._llm_aux_api_key.setStyleSheet(style)
         self._llm_aux_model_id.setStyleSheet(style)
         self._llm_api_profile_name.setStyleSheet(style)
+        self._llm_custom_system_prompt.setStyleSheet(style)
         self._user_name.setStyleSheet(style)
         self._pov_custom_prompt.setStyleSheet(style)
         hint_color = "#a7b0bf" if dark else "#687385"
@@ -5603,6 +5641,7 @@ class SettingsWindow(QWidget):
                     self._llm_web_search_engine.setCurrentIndex(i)
                     break
             self._llm_web_search_show_sources.setChecked(bool(self._cfg.get("llm_web_search_show_sources", True)))
+            self._llm_custom_system_prompt.setPlainText(self._cfg.get("llm_custom_system_prompt", ""))
             self._on_llm_web_search_enabled_changed(self._llm_web_search_enabled.isChecked())
             self._on_llm_api_mode_changed(self._llm_api_mode.currentIndex())
             self._saved_user_name = self._cfg.get("user_name", "")
@@ -6098,6 +6137,7 @@ class SettingsWindow(QWidget):
             self._cfg.set("llm_web_search_enabled", self._llm_web_search_enabled.isChecked())
             self._cfg.set("llm_web_search_engine", self._llm_web_search_engine.itemData(self._llm_web_search_engine.currentIndex()) or "bing_cn")
             self._cfg.set("llm_web_search_show_sources", self._llm_web_search_show_sources.isChecked())
+            self._cfg.set("llm_custom_system_prompt", self._llm_custom_system_prompt.toPlainText().strip())
             pov_mode = self._pov_mode.itemData(self._pov_mode.currentIndex()) or "off"
             if pov_mode == "role":
                 user_name = self._pov_role_character.currentText().strip()
@@ -6456,14 +6496,26 @@ class SettingsWindow(QWidget):
         self._fetch_worker.start()
 
     def _on_models_fetched(self, models: list[str]):
-        for i in range(self._llm_model_list_layout.count()):
-            item = self._llm_model_list_layout.itemAt(i)
+        target = getattr(self, "_llm_model_fetch_target", self._llm_model_id)
+        if target is self._llm_aux_model_id:
+            list_widget = self._llm_aux_model_list
+            list_layout = self._llm_aux_model_list_layout
+            label = self._llm_aux_model_combo_label
+            scroll = self._llm_aux_model_scroll
+        else:
+            list_widget = self._llm_primary_model_list
+            list_layout = self._llm_primary_model_list_layout
+            label = self._llm_primary_model_combo_label
+            scroll = self._llm_primary_model_scroll
+
+        while list_layout.count():
+            item = list_layout.takeAt(0)
             if item and item.widget():
                 item.widget().deleteLater()
 
         dark = isDarkTheme()
         for idx, model_name in enumerate(models):
-            btn = QPushButton(model_name, self._llm_model_list)
+            btn = QPushButton(model_name, list_widget)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setFixedHeight(34)
             btn.setStyleSheet(f"""
@@ -6481,12 +6533,12 @@ class SettingsWindow(QWidget):
                 }}
             """)
             btn.clicked.connect(lambda checked, mn=model_name: self._set_fetched_model_id(mn))
-            self._llm_model_list_layout.addWidget(btn)
+            list_layout.addWidget(btn)
             QTimer.singleShot(idx * 30, lambda b=btn: self._animate_button_in(b))
-        self._llm_model_list_layout.addStretch()
+        list_layout.addStretch()
 
-        self._llm_model_combo_label.show()
-        self._llm_model_scroll.show()
+        label.show()
+        scroll.show()
 
     def _set_fetched_model_id(self, model_name: str):
         target = getattr(self, "_llm_model_fetch_target", self._llm_model_id)
