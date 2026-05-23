@@ -6,6 +6,7 @@ import random
 import re
 import sys
 import time
+import uuid
 
 if os.name == "nt":
     import ctypes.wintypes
@@ -254,6 +255,16 @@ class PetWindow(QWidget):
             self._live2d_scale = _clamp_live2d_scale(self._cfg.get("live2d_scale", 100) or 100)
         self._radial_menu_process = None
         self._radial_menu_buffer = ""
+        self._radial_menu_socket = QLocalSocket(self)
+        self._radial_menu_server_name = ""
+        self._radial_menu_command_queue = []
+        self._radial_menu_visible = False
+        self._radial_menu_prewarm_timer = QTimer(self)
+        self._radial_menu_prewarm_timer.setSingleShot(True)
+        self._radial_menu_prewarm_timer.setInterval(1200)
+        self._radial_menu_prewarm_timer.timeout.connect(self._ensure_radial_menu_process)
+        self._radial_menu_socket.connected.connect(self._flush_radial_menu_commands)
+        self._radial_menu_socket.errorOccurred.connect(lambda _error: None)
         self._compact_ai_window = None
         self._compact_ai_bounds_cache = None
         self._compact_ai_drag_bounds = None
@@ -312,6 +323,7 @@ class PetWindow(QWidget):
         self._context_idle_timer.start()
         self._apply_game_topmost_state()
         self._connect_ipc_socket()
+        self._radial_menu_prewarm_timer.start()
         app = QCoreApplication.instance()
         if app is not None:
             app.installEventFilter(self)
@@ -504,9 +516,9 @@ class PetWindow(QWidget):
         if self._is_radial_menu_visible():
             event_type = event.type()
             if event_type == QEvent.Type.ApplicationDeactivate:
-                self._close_radial_menu_process()
+                self._send_radial_menu_command("CLOSE")
             elif obj is self and event_type == QEvent.Type.WindowDeactivate:
-                self._close_radial_menu_process()
+                self._send_radial_menu_command("CLOSE")
         return super().eventFilter(obj, event)
 
     def _set_mouse_passthrough(self, enabled: bool):
@@ -1203,7 +1215,7 @@ class PetWindow(QWidget):
         self._note_user_interaction()
         self._refresh_topmost_for_interaction(force=True)
         if self._is_radial_menu_visible():
-            self._close_radial_menu_process()
+            self._send_radial_menu_command("CLOSE")
             return
         if self._pixel_mode or x is None or y is None:
             return
@@ -1376,9 +1388,11 @@ class PetWindow(QWidget):
         self._refresh_topmost_for_interaction(force=True)
         self._set_mouse_passthrough(False)
         if self._is_radial_menu_visible():
-            self._close_radial_menu_process()
+            self._send_radial_menu_command("CLOSE")
             return
-        self._start_radial_menu_process(gx, gy)
+        self._send_radial_menu_command(
+            f"SHOW\t{json.dumps(self._radial_menu_payload(gx, gy), ensure_ascii=False)}"
+        )
 
     def _radial_menu_payload(self, gx: int, gy: int) -> dict:
         _pixel_widget_class, _load_pixel_frames, pixel_path_for_character = _pixel_pet_support()
@@ -1422,11 +1436,21 @@ class PetWindow(QWidget):
             ],
         }
 
-    def _start_radial_menu_process(self, gx: int, gy: int):
+    def _ensure_radial_menu_process(self):
+        process = self._radial_menu_process
+        if process is not None and process.state() != QProcess.ProcessState.NotRunning:
+            if self._radial_menu_socket.state() == QLocalSocket.LocalSocketState.UnconnectedState:
+                self._radial_menu_socket.connectToServer(self._radial_menu_server_name)
+            return
+
         base_dir = str(app_base_dir())
         process = QProcess(self)
-        payload = json.dumps(self._radial_menu_payload(gx, gy), ensure_ascii=False)
-        program, arguments = process_program_and_args(base_dir, "radial_menu_process.py", ["--payload", payload])
+        self._radial_menu_server_name = f"{ipc_server_name()}-radial-{uuid.uuid4().hex}"
+        program, arguments = process_program_and_args(
+            base_dir,
+            "radial_menu_process.py",
+            ["--server-name", self._radial_menu_server_name],
+        )
         process.setProgram(program)
         process.setArguments(arguments)
         process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
@@ -1435,14 +1459,33 @@ class PetWindow(QWidget):
         process.finished.connect(lambda *_args, p=process: self._on_radial_menu_process_finished(p))
         process.errorOccurred.connect(lambda _error, p=process: self._on_radial_menu_process_finished(p))
         self._radial_menu_buffer = ""
+        self._radial_menu_visible = False
         self._radial_menu_process = process
         process.start()
 
     def _is_radial_menu_visible(self) -> bool:
-        process = self._radial_menu_process
-        return process is not None and process.state() != QProcess.ProcessState.NotRunning
+        return self._radial_menu_visible
+
+    def _send_radial_menu_command(self, line: str):
+        self._radial_menu_command_queue.append(line)
+        self._ensure_radial_menu_process()
+        self._flush_radial_menu_commands()
+
+    def _flush_radial_menu_commands(self):
+        if self._radial_menu_socket.state() != QLocalSocket.LocalSocketState.ConnectedState:
+            return
+        while self._radial_menu_command_queue:
+            line = self._radial_menu_command_queue.pop(0)
+            self._radial_menu_socket.write((line + "\n").encode("utf-8"))
+        self._radial_menu_socket.flush()
 
     def _close_radial_menu_process(self, force: bool = False):
+        self._radial_menu_prewarm_timer.stop()
+        if self._radial_menu_socket.state() == QLocalSocket.LocalSocketState.ConnectedState:
+            self._radial_menu_socket.write(b"EXIT\n")
+            self._radial_menu_socket.flush()
+        if self._radial_menu_socket.state() != QLocalSocket.LocalSocketState.UnconnectedState:
+            self._radial_menu_socket.abort()
         process = self._radial_menu_process
         if process is None:
             return
@@ -1454,6 +1497,9 @@ class PetWindow(QWidget):
         if self._radial_menu_process is process:
             self._radial_menu_process = None
             self._radial_menu_buffer = ""
+            self._radial_menu_server_name = ""
+            self._radial_menu_command_queue.clear()
+            self._radial_menu_visible = False
         process.deleteLater()
 
     def _read_radial_menu_process_output(self, process: QProcess):
@@ -1473,7 +1519,14 @@ class PetWindow(QWidget):
             print(data, file=sys.stderr, end="")
 
     def _handle_radial_menu_process_line(self, line: str):
-        if line.startswith("ACT\t"):
+        if line == "READY":
+            if self._radial_menu_socket.state() == QLocalSocket.LocalSocketState.UnconnectedState:
+                self._radial_menu_socket.connectToServer(self._radial_menu_server_name)
+        elif line == "STATE\tOPEN":
+            self._radial_menu_visible = True
+        elif line == "STATE\tCLOSED":
+            self._radial_menu_visible = False
+        elif line.startswith("ACT\t"):
             action = line.split("\t", 1)[1].strip()
             handlers = {
                 "chat": self._on_radial_chat,
@@ -1491,6 +1544,11 @@ class PetWindow(QWidget):
         if self._radial_menu_process is process:
             self._radial_menu_process = None
             self._radial_menu_buffer = ""
+            self._radial_menu_server_name = ""
+            self._radial_menu_command_queue.clear()
+            self._radial_menu_visible = False
+        if self._radial_menu_socket.state() != QLocalSocket.LocalSocketState.UnconnectedState:
+            self._radial_menu_socket.abort()
         process.deleteLater()
 
     def _on_radial_chat(self):
