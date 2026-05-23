@@ -417,6 +417,8 @@ class LuaLAppModel:
             opts,
         )
         self._module._apply_texture_quality(self._renderer, get_live2d_texture_quality().encode("utf-8"))
+        self._draw_opts = self._module._lua.table()
+        self._draw_opts[b"clear"] = False
 
     def Resize(self, width: int, height: int):
         self._width = max(int(width), 1)
@@ -431,8 +433,7 @@ class LuaLAppModel:
     def Draw(self):
         if self._renderer is None:
             return
-        opts = self._module._lua.table()
-        opts[b"clear"] = False
+        opts = self._draw_opts
         opts[b"time_msec"] = time.monotonic() * 1000.0
         if self._pending_parameters:
             params = self._module._lua.table()
@@ -443,6 +444,8 @@ class LuaLAppModel:
                 item[b"weight"] = float(weight)
                 params[index] = item
             opts[b"parameters"] = params
+        else:
+            opts[b"parameters"] = None
         self._module._draw(self._renderer, opts)
 
     def Drag(self, x: float, y: float):

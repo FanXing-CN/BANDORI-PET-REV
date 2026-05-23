@@ -2,6 +2,7 @@ import ctypes
 import sys
 import OpenGL.GL as gl
 from PySide6.QtCore import Qt, QPoint, QElapsedTimer, QTimer, Signal
+from PySide6.QtGui import QCursor
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from live2d_quality import LIVE2D_QUALITY_PROFILES, normalize_live2d_quality
 from lua_hit_area_projection import LuaCustomHitAreaState
@@ -456,8 +457,6 @@ class Live2DWidget(QOpenGLWidget):
         self._model.Drag(local_x, local_y)
 
     def _poll_head_tracking(self):
-        from PySide6.QtGui import QCursor
-
         pos = QCursor.pos()
         self._track_head_at_global(pos.x(), pos.y())
 
@@ -746,16 +745,18 @@ class Live2DWidget(QOpenGLWidget):
             ptr = gl.glMapBuffer(gl.GL_PIXEL_PACK_BUFFER, gl.GL_READ_ONLY)
             if ptr:
                 data = ctypes.string_at(ptr, self._hit_pbo_size)
-                self._hit_alpha_cache[request["key"]] = (data[3], now)
+                self._insert_hit_cache(request["key"], data[3], now)
                 gl.glUnmapBuffer(gl.GL_PIXEL_PACK_BUFFER)
             self._safe_unbind_pbo()
             if fence:
                 gl.glDeleteSync(fence)
-                    
-        # 缓存清理机制
+    
+    def _insert_hit_cache(self, key, alpha, now):
+        self._hit_alpha_cache[key] = (alpha, now)
         if len(self._hit_alpha_cache) > 128:
             expired = [k for k, (_, ts) in self._hit_alpha_cache.items() if now - ts > self._hit_alpha_cache_ttl_ms]
-            for k in expired: self._hit_alpha_cache.pop(k, None)
+            for k in expired:
+                self._hit_alpha_cache.pop(k, None)
 
     def _queue_hit_pbo_read(self, key: tuple[int, int], sx: int, sy: int):
         if not self._hit_pbo_supported or not self._hit_pbo_ids: return
@@ -788,6 +789,11 @@ class Live2DWidget(QOpenGLWidget):
         alpha, known = 0, False
         fetch_method = self._get_alpha_sync if sync else self._get_alpha_fast
         
+        self._safe_make_current()
+        if self._hit_pbo_supported is not False:
+            self._init_hit_pbos()
+            self._process_hit_pbo_results()
+        
         for dx, dy in self._hit_probe_offsets:
             sample_alpha = fetch_method(x + dx, y + dy)
             if sample_alpha is None: continue
@@ -800,14 +806,10 @@ class Live2DWidget(QOpenGLWidget):
         return alpha if (known or sync) else None
 
     def _get_alpha_read_context(self, x: float, y: float):
-        """通用：检查坐标合法性，获取GL坐标并尝试从缓存取值，减少重复代码"""
         if not self._initialized_gl or not self._model: return None
         if not (0 <= x < self._cache_w and 0 <= y < self._cache_h): return None
         
         self._safe_make_current()
-        if self._hit_pbo_supported is not False:
-            self._init_hit_pbos()
-            self._process_hit_pbo_results()
             
         sx = int(x * self._system_scale)
         sy = int((self._cache_h - 1 - y) * self._system_scale)
@@ -830,7 +832,7 @@ class Live2DWidget(QOpenGLWidget):
         self._safe_unbind_pbo()
         gl.glReadPixels(sx, sy, 1, 1, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, pixel)
         alpha = int(pixel[3])
-        self._hit_alpha_cache[key] = (alpha, now)
+        self._insert_hit_cache(key, alpha, now)
         return alpha
 
     def _get_alpha_fast(self, x: float, y: float):
@@ -840,5 +842,4 @@ class Live2DWidget(QOpenGLWidget):
         if cached_alpha is not None: return cached_alpha
 
         self._queue_hit_pbo_read(key, sx, sy)
-        cached = self._hit_alpha_cache.get(key)
-        return cached[0] if cached else None
+        return None
