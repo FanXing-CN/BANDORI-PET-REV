@@ -719,7 +719,7 @@ class PetWindow(QWidget):
         return self._with_saved_action_profile(fallback or {})
 
     def _with_saved_action_profile(self, entry: dict) -> dict:
-        if not self._cfg or not hasattr(self._cfg, "get_model_action_profile"):
+        if not self._cfg:
             return entry
         profile = self._cfg.get_model_action_profile(self._current_char, self._current_costume)
         if not profile:
@@ -861,6 +861,23 @@ class PetWindow(QWidget):
         if self._start_context_idle_behavior("approach"):
             self._last_mouse_approach_action_at = now
 
+    def _safe_start_motion(self, model, motion_name: str, *, priority=None, on_finish=None) -> bool:
+        if not motion_name:
+            return False
+        priority = priority or self._live2d.MotionPriority.FORCE
+        kwargs = {}
+        if on_finish:
+            kwargs["onFinishMotionHandler"] = on_finish
+        try:
+            model.StartRandomMotion(motion_name, priority=priority, **kwargs)
+            return True
+        except Exception:
+            try:
+                model.StartMotion(motion_name, 0, priority, **kwargs)
+                return True
+            except Exception:
+                return False
+
     def _start_context_idle_behavior(self, kind: str) -> bool:
         if not self._live2d_idle_actions_enabled:
             return False
@@ -883,24 +900,11 @@ class PetWindow(QWidget):
         if motion:
             self._motion_guard_token += 1
             token = self._motion_guard_token
-            try:
-                model.StartRandomMotion(
-                    motion,
-                    priority=self._live2d.MotionPriority.FORCE,
-                    onFinishMotionHandler=self._on_motion_finished,
-                )
-                started = True
-            except Exception:
-                try:
-                    model.StartMotion(
-                        motion,
-                        0,
-                        self._live2d.MotionPriority.FORCE,
-                        onFinishMotionHandler=self._on_motion_finished,
-                    )
-                    started = True
-                except Exception:
-                    started = False
+            started = self._safe_start_motion(
+                model, motion,
+                priority=self._live2d.MotionPriority.FORCE,
+                on_finish=self._on_motion_finished,
+            )
             if started:
                 QTimer.singleShot(9000, lambda t=token: self._clear_motion_if_current(t))
                 QTimer.singleShot(1800, lambda t=token: self._restore_default_if_finished(t))
@@ -990,7 +994,7 @@ class PetWindow(QWidget):
         if not tag:
             return ""
         model = self._live2d_widget.model
-        if model is None or not hasattr(model, "expressions"):
+        if model is None:
             return ""
         try:
             names = list(model.expressions.keys())
@@ -1157,10 +1161,7 @@ class PetWindow(QWidget):
             _x11.XCloseDisplay(display)
 
     def _is_pet_dragging(self) -> bool:
-        return bool(
-            getattr(self._live2d_widget, "_dragging", False)
-            or getattr(self._pixel_widget, "_dragging", False)
-        )
+        return bool(self._live2d_widget._dragging or self._pixel_widget._dragging)
 
     def _on_click(self, x: float | None = None, y: float | None = None, area_name: str = ""):
         self._note_user_interaction()
@@ -1231,7 +1232,7 @@ class PetWindow(QWidget):
 
     def _current_expression_names(self) -> list[str]:
         model = self._live2d_widget.model
-        if model is None or not hasattr(model, "expressions"):
+        if model is None:
             return []
         try:
             return list(model.expressions.keys())
@@ -1244,30 +1245,24 @@ class PetWindow(QWidget):
             return
         if expression:
             self._apply_click_expression(expression)
-        try:
-            self._motion_guard_token += 1
-            token = self._motion_guard_token
-            if motion_name:
-                try:
-                    model.StartRandomMotion(
-                        motion_name,
-                        priority=self._live2d.MotionPriority.FORCE,
-                    )
-                except Exception:
-                    model.StartMotion(
-                        motion_name,
-                        0,
-                        self._live2d.MotionPriority.FORCE,
-                    )
-            else:
+        self._motion_guard_token += 1
+        token = self._motion_guard_token
+        started = False
+        if motion_name:
+            started = self._safe_start_motion(model, motion_name)
+        else:
+            try:
                 model.StartRandomMotion(priority=self._live2d.MotionPriority.FORCE)
+                started = True
+            except Exception:
+                pass
+        if started:
             if expression:
                 QTimer.singleShot(80, lambda t=self._expression_guard_token, e=expression: self._set_click_expression_if_current(t, e))
             QTimer.singleShot(9000, lambda t=token: self._clear_motion_if_current(t))
             QTimer.singleShot(3200, lambda t=token: self._restore_default_if_finished(t))
-        except Exception:
-            if expression:
-                QTimer.singleShot(5000, lambda t=self._expression_guard_token: self._restore_default_expression_if_current(t))
+        elif expression:
+            QTimer.singleShot(5000, lambda t=self._expression_guard_token: self._restore_default_expression_if_current(t))
 
     def _apply_click_expression(self, expression: str):
         expression = str(expression or "").strip()
@@ -1630,7 +1625,7 @@ class PetWindow(QWidget):
     def _compact_window_target(self):
         bounds = None
         if not self._pixel_mode:
-            dragging = bool(getattr(self._live2d_widget, "_dragging", False))
+            dragging = self._live2d_widget._dragging
             if dragging:
                 if self._compact_ai_drag_bounds is None:
                     self._compact_ai_drag_bounds = (
@@ -1692,7 +1687,7 @@ class PetWindow(QWidget):
         normalized = normalized.strip("[] \t\r\n")
         normalized = normalized.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
 
-        exp_names = list(model.expressions.keys()) if hasattr(model, 'expressions') else []
+        exp_names = list(model.expressions.keys())
         exp_map = {}
         for ename in exp_names:
             l = ename.lower()
@@ -1805,19 +1800,17 @@ class PetWindow(QWidget):
         motion_started = False
         if motion:
             self._expression_guard_token += 1
-            try:
-                self._motion_guard_token += 1
-                token = self._motion_guard_token
-                model.StartMotion(
-                    motion,
-                    0,
-                    self._live2d.MotionPriority.FORCE,
-                    onFinishMotionHandler=self._on_motion_finished,
-                )
-                motion_started = True
+            self._motion_guard_token += 1
+            token = self._motion_guard_token
+            motion_started = self._safe_start_motion(
+                model, motion,
+                priority=self._live2d.MotionPriority.FORCE,
+                on_finish=self._on_motion_finished,
+            )
+            if motion_started:
                 QTimer.singleShot(8000, lambda t=token: self._clear_motion_if_current(t))
                 QTimer.singleShot(1800, lambda t=token: self._restore_default_if_finished(t))
-            except Exception:
+            else:
                 try:
                     self._motion_guard_token += 1
                     token = self._motion_guard_token
@@ -1930,36 +1923,15 @@ class PetWindow(QWidget):
             motion_names = []
         configured_motion = str(self._current_model_entry().get("default_motion", ""))
         if configured_motion in motion_names:
-            try:
-                priority = self._live2d.MotionPriority.NORMAL if smooth else self._live2d.MotionPriority.FORCE
-                model.StartRandomMotion(configured_motion, priority=priority)
+            priority = self._live2d.MotionPriority.NORMAL if smooth else self._live2d.MotionPriority.FORCE
+            if self._safe_start_motion(model, configured_motion, priority=priority):
                 self._apply_default_expression(model)
                 return
-            except Exception:
-                try:
-                    model.StartMotion(configured_motion, 0, self._live2d.MotionPriority.FORCE)
-                    self._apply_default_expression(model)
-                    return
-                except Exception:
-                    pass
         idle_names = [name for name in motion_names if str(name).lower().startswith("idle")]
         if idle_names:
             idle_name = random.choice(idle_names)
             priority = self._live2d.MotionPriority.NORMAL if smooth else self._live2d.MotionPriority.FORCE
-            try:
-                model.StartRandomMotion(
-                    idle_name,
-                    priority=priority,
-                )
-            except Exception:
-                try:
-                    model.StartMotion(
-                        idle_name,
-                        0,
-                        self._live2d.MotionPriority.FORCE,
-                    )
-                except Exception:
-                    pass
+            self._safe_start_motion(model, idle_name, priority=priority)
         else:
             try:
                 model.ClearMotions()
@@ -1988,8 +1960,7 @@ class PetWindow(QWidget):
         if time.monotonic() < self._click_expression_hold_until:
             return
         try:
-            if hasattr(model, "ResetExpression"):
-                model.ResetExpression()
+            model.ResetExpression()
         except Exception:
             pass
         try:
@@ -2000,7 +1971,7 @@ class PetWindow(QWidget):
             pass
 
     def _find_default_expression(self, model):
-        if not hasattr(model, 'expressions') or not model.expressions:
+        if not model.expressions:
             return None
         configured_expression = str(self._current_model_entry().get("default_expression", ""))
         if configured_expression in model.expressions:
@@ -2200,8 +2171,7 @@ class PetWindow(QWidget):
         click_motion_actions = self._current_model_entry().get("click_motion_actions", {})
         if click_motion_actions:
             entry["click_motion_actions"] = click_motion_actions
-        if hasattr(self._cfg, "set_model_action_profile"):
-            self._cfg.set_model_action_profile(self._current_char, self._current_costume, entry)
+        self._cfg.set_model_action_profile(self._current_char, self._current_costume, entry)
         entry["pet_mode"] = "pixel" if self._pixel_mode else "live2d"
         if self._pixel_mode:
             entry.update({

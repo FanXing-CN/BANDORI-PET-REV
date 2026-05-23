@@ -237,8 +237,7 @@ class Live2DWidget(QOpenGLWidget):
 
     def _prepare_custom_hit_areas(self, model):
         try:
-            setting = getattr(model, "modelSetting", None)
-            config = getattr(setting, "json", {}) if setting is not None else {}
+            config = model.modelSetting.json
             areas = config.get("hit_areas_custom") or {}
             if not isinstance(areas, dict):
                 return ()
@@ -621,8 +620,7 @@ class Live2DWidget(QOpenGLWidget):
 
     def _has_sdk_hit_areas(self) -> bool:
         try:
-            setting = getattr(self._model, "modelSetting", None)
-            return setting is not None and setting.getHitAreaNum() > 0
+            return self._model.modelSetting.getHitAreaNum() > 0
         except Exception:
             return False
 
