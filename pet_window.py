@@ -236,10 +236,10 @@ class PetWindow(QWidget):
         self._fps = fps
         self._opacity = opacity
         self._vsync = True
-        self._game_topmost = bool(config_manager.get("game_topmost", False)) if config_manager else False
-        self._hide_live2d_model = bool(config_manager.get("hide_live2d_model", False)) if config_manager else False
+        self._game_topmost = bool(config_manager.get("game_topmost", False))
+        self._hide_live2d_model = bool(config_manager.get("hide_live2d_model", False))
         self._live2d_idle_actions_enabled = (
-            bool(config_manager.get("live2d_idle_actions_enabled", True)) if config_manager else True
+            bool(config_manager.get("live2d_idle_actions_enabled", True))
         )
         self._live2d_quality = "balanced"
         self._live2d_scale = 100
@@ -252,7 +252,7 @@ class PetWindow(QWidget):
             self._live2d_quality = normalize_live2d_quality(
                 self._cfg.get("live2d_quality", "balanced")
             )
-            self._live2d_scale = _clamp_live2d_scale(self._cfg.get("live2d_scale", 100) or 100)
+            self._live2d_scale = _clamp_live2d_scale(self._cfg.get("live2d_scale", 100))
         self._radial_menu_process = None
         self._radial_menu_buffer = ""
         self._radial_menu_socket = QLocalSocket(self)
@@ -269,9 +269,9 @@ class PetWindow(QWidget):
         self._compact_ai_bounds_cache = None
         self._compact_ai_drag_bounds = None
         self._suppress_compact_ai_sync = False
-        self._compact_ai_window_enabled = bool(self._cfg.get("compact_ai_window_enabled", False)) if self._cfg else False
-        self._ai_event_overlay_enabled = bool(self._cfg.get("ai_event_overlay_enabled", False)) if self._cfg else False
-        self._chat_integration_overlay_enabled = bool(self._cfg.get("chat_integration_overlay_enabled", True)) if self._cfg else True
+        self._compact_ai_window_enabled = bool(self._cfg.get("compact_ai_window_enabled", False))
+        self._ai_event_overlay_enabled = bool(self._cfg.get("ai_event_overlay_enabled", False))
+        self._chat_integration_overlay_enabled = bool(self._cfg.get("chat_integration_overlay_enabled", True))
         self._chat_process = None
         self._settings_process = None
         self._entrance_anim = None
@@ -1247,7 +1247,7 @@ class PetWindow(QWidget):
             self._start_click_motion("", configured_expression)
 
     def _click_motion_area_bounds(self, area_name: str):
-        area_name = str(area_name or "").strip().lower()
+        area_name = (area_name or "").strip().lower()
         visible_bounds = self._live2d_widget.visible_model_bounds()
         if area_name in {"head", "face"}:
             return visible_bounds or self._live2d_widget.hit_area_bounds(area_name)
@@ -1640,7 +1640,7 @@ class PetWindow(QWidget):
             return
         if not self._ai_event_overlay_enabled:
             return
-        target = str(
+        target = (
             event.get("character")
             or event.get("target_character")
             or ""
@@ -1648,8 +1648,8 @@ class PetWindow(QWidget):
         if target and target != self._current_char:
             return
 
-        action = str(event.get("action", "") or "").strip()
-        state = str(event.get("state", "") or "").strip().lower()
+        action = (event.get("action") or "").strip()
+        state = (event.get("state") or "").strip().lower()
         if not action and state in {"thinking", "tool"}:
             action = "thinking"
         elif not action and state == "error":
@@ -2009,18 +2009,14 @@ class PetWindow(QWidget):
         model = self._live2d_widget.model
         if model is None:
             return
-        if not self._live2d_idle_actions_enabled:
-            if force_clear:
-                try:
-                    model.ClearMotions()
-                except Exception:
-                    pass
-            return
-        if force_clear:
+        if not self._live2d_idle_actions_enabled or force_clear:
             try:
                 model.ClearMotions()
             except Exception:
                 pass
+        if not self._live2d_idle_actions_enabled:
+            return
+        if force_clear:
             QTimer.singleShot(50, lambda t=token: self._start_idle_motion_if_current(t, smooth=False))
         else:
             self._start_idle_motion_if_current(token, smooth=True)
@@ -2056,7 +2052,7 @@ class PetWindow(QWidget):
         if model is None:
             return
         motion_names = list(model.modelSetting.getMotionNames())
-        configured_motion = str(self._current_model_entry().get("default_motion", ""))
+        configured_motion = self._current_model_entry().get("default_motion", "")
         if configured_motion in motion_names:
             priority = self._live2d.MotionPriority.NORMAL if smooth else self._live2d.MotionPriority.FORCE
             if self._safe_start_motion(model, configured_motion, priority=priority):
@@ -2096,9 +2092,6 @@ class PetWindow(QWidget):
             return
         try:
             model.ResetExpression()
-        except Exception:
-            pass
-        try:
             default_exp = self._find_default_expression(model)
             if default_exp:
                 model.SetExpression(default_exp)
@@ -2108,7 +2101,7 @@ class PetWindow(QWidget):
     def _find_default_expression(self, model):
         if not model.expressions:
             return None
-        configured_expression = str(self._current_model_entry().get("default_expression", ""))
+        configured_expression = self._current_model_entry().get("default_expression", "")
         if configured_expression in model.expressions:
             return configured_expression
         for name in model.expressions:

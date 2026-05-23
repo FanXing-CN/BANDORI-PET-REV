@@ -171,7 +171,7 @@ def main():
         if not cfg.get("ai_status_port_enabled", False):
             return
         port = _clamp_ai_status_port(cfg.get("ai_status_port", 38472))
-        token = str(cfg.get("ai_status_token", "") or "")
+        token = cfg.get("ai_status_token") or ""
 
         def on_ai_event(event: dict):
             payload = json.dumps(event, ensure_ascii=False)
@@ -202,7 +202,7 @@ def main():
             lines.append(f"[{platform}] {label}（{unread}）")
             for message in (thread.get("messages") or [])[-3:]:
                 sender = message.get("sender_name") or message.get("sender_id") or "unknown"
-                content = str(message.get("content", "") or "").replace("\r", " ").replace("\n", " ").strip()
+                content = (message.get("content") or "").replace("\r", " ").replace("\n", " ").strip()
                 if len(content) > 80:
                     content = content[:80] + "..."
                 lines.append(f"{sender}: {content}")
@@ -223,7 +223,7 @@ def main():
             "ttl_ms": int(event.get("ttl_ms") or 9000),
             "anchor_to_pet": True,
         }
-        character = str(event.get("character") or event.get("target_character") or "").strip()
+        character = (event.get("character") or event.get("target_character") or "").strip()
         if character:
             overlay["character"] = character
         broadcast_ipc_line(f"CHAT_EVENT\t{json.dumps(overlay, ensure_ascii=False)}")
@@ -238,8 +238,8 @@ def main():
     def handle_chat_integration_read(data: dict) -> dict:
         with chat_integration_ref["lock"]:
             result = chat_integration_db().mark_external_chat_read(
-                str(data.get("platform", "") or ""),
-                str(data.get("thread_id", "") or data.get("conversation_id", "") or ""),
+                data.get("platform") or "",
+                data.get("thread_id") or data.get("conversation_id") or "",
             )
         overlay = {
             "source": "chat",
@@ -256,7 +256,7 @@ def main():
         if not cfg.get("chat_integration_enabled", False):
             return
         port = _clamp_ai_status_port(cfg.get("chat_integration_port", 38473))
-        token = str(cfg.get("chat_integration_token", "") or "")
+        token = cfg.get("chat_integration_token") or ""
         try:
             server = ChatIntegrationHttpServer(
                 port,

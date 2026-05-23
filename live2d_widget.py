@@ -544,7 +544,7 @@ class Live2DWidget(QOpenGLWidget):
         return self._custom_hit_area_name_at(x, y) or self._sdk_hit_area_name_at(x, y)
 
     def hit_area_bounds(self, area_name: str):
-        area_name = str(area_name or "").strip().lower()
+        area_name = (area_name or "").strip().lower()
         if not area_name: return None
         return self._custom_hit_areas.bounds_for(area_name)
 
@@ -570,7 +570,7 @@ class Live2DWidget(QOpenGLWidget):
             return False
         alpha = self._alpha_near(x, y, sync=True)
         self._last_hit_test_ms = self._hit_clock.elapsed()
-        self._last_hit_state = (alpha or 0) > self._hit_alpha_threshold
+        self._last_hit_state = alpha > self._hit_alpha_threshold
         return self._last_hit_state
 
     def _hit_state_at(self, x: float, y: float):
@@ -607,7 +607,7 @@ class Live2DWidget(QOpenGLWidget):
 
     def _sdk_hit_area_name_at(self, x: float, y: float) -> str:
         if not self._has_sdk_hit_areas(): return ""
-        return str(self._model.HitTest("", x, y) or "").strip().lower()
+        return (self._model.HitTest("", x, y) or "").strip().lower()
 
     def _is_in_custom_hit_area(self, x: float, y: float) -> bool:
         return bool(self._custom_hit_area_name_at(x, y))
