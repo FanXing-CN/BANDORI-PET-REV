@@ -2808,6 +2808,29 @@ class SettingsWindow(QWidget):
         fetch_btn.clicked.connect(lambda: self._fetch_models(self._llm_model_id))
         model_row.addWidget(fetch_btn)
         layout.addLayout(model_row)
+
+        thinking_label = BodyLabel(_tr("SettingsWindow.llm_enable_thinking"), page)
+        layout.addWidget(thinking_label)
+        self._llm_enable_thinking = OpaqueDropDownComboBox(page)
+        self._llm_enable_thinking.addItems([
+            _tr("SettingsWindow.llm_enable_thinking_default"),
+            _tr("SettingsWindow.llm_enable_thinking_on"),
+            _tr("SettingsWindow.llm_enable_thinking_off"),
+        ])
+        self._llm_enable_thinking.setFixedHeight(36)
+        self._llm_enable_thinking.setCurrentIndex(0)
+        layout.addWidget(self._llm_enable_thinking)
+
+        show_reasoning_row = QHBoxLayout()
+        show_reasoning_row.setContentsMargins(0, 0, 0, 0)
+        show_reasoning_label = BodyLabel(_tr("SettingsWindow.llm_show_reasoning"), page)
+        self._llm_show_reasoning = SwitchButton(page)
+        self._llm_show_reasoning.setChecked(True)
+        show_reasoning_row.addWidget(show_reasoning_label)
+        show_reasoning_row.addStretch()
+        show_reasoning_row.addWidget(self._llm_show_reasoning)
+        layout.addLayout(show_reasoning_row)
+
         (
             self._llm_primary_model_combo_label,
             self._llm_primary_model_scroll,
@@ -2920,28 +2943,6 @@ class SettingsWindow(QWidget):
         web_search_sources_row.addStretch()
         web_search_sources_row.addWidget(self._llm_web_search_show_sources)
         layout.addLayout(web_search_sources_row)
-
-        thinking_label = BodyLabel(_tr("SettingsWindow.llm_enable_thinking"), page)
-        layout.addWidget(thinking_label)
-        self._llm_enable_thinking = OpaqueDropDownComboBox(page)
-        self._llm_enable_thinking.addItems([
-            _tr("SettingsWindow.llm_enable_thinking_default"),
-            _tr("SettingsWindow.llm_enable_thinking_on"),
-            _tr("SettingsWindow.llm_enable_thinking_off"),
-        ])
-        self._llm_enable_thinking.setFixedHeight(36)
-        self._llm_enable_thinking.setCurrentIndex(0)
-        layout.addWidget(self._llm_enable_thinking)
-
-        show_reasoning_row = QHBoxLayout()
-        show_reasoning_row.setContentsMargins(0, 0, 0, 0)
-        show_reasoning_label = BodyLabel(_tr("SettingsWindow.llm_show_reasoning"), page)
-        self._llm_show_reasoning = SwitchButton(page)
-        self._llm_show_reasoning.setChecked(True)
-        show_reasoning_row.addWidget(show_reasoning_label)
-        show_reasoning_row.addStretch()
-        show_reasoning_row.addWidget(self._llm_show_reasoning)
-        layout.addLayout(show_reasoning_row)
 
         layout.addWidget(SubtitleLabel(_tr("SettingsWindow.llm_chat_commands_title", default="LLM 对话命令"), page))
         layout.addWidget(_wrap_label(BodyLabel(_tr(
