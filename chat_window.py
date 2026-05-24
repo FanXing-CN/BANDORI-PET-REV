@@ -1,4 +1,7 @@
-import fluent_bootstrap  # noqa: F401
+import fluent_bootstrap
+
+fluent_bootstrap.prefer_local_pyside6_fluent_widgets()
+
 from PySide6.QtCore import Qt, QObject, QThread, Signal, QTimer, QPropertyAnimation, QEasingCurve, QEvent, QRect, QRectF, QSize, QVariantAnimation, QParallelAnimationGroup
 from PySide6.QtGui import QFont, QColor, QPalette, QIcon, QKeyEvent, QPainter, QPainterPath, QPen, QPixmap, QImage, QRegion
 from PySide6.QtWidgets import (

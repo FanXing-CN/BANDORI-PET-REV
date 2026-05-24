@@ -13,7 +13,8 @@ if os.name == "nt":
 
 from PySide6.QtCore import Qt, QPoint, QTimer, QPropertyAnimation, QEasingCurve, QProcess, QEvent, QCoreApplication
 from PySide6.QtNetwork import QLocalSocket
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedLayout
+from PySide6.QtGui import QCursor, QGuiApplication
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedLayout, QSystemTrayIcon
 
 from app_theme import apply_app_theme
 from i18n_manager import tr as _tr, set_language
@@ -24,7 +25,7 @@ from live2d_click_actions import (
     click_motion_region_for_point,
     normalize_click_motion_actions,
 )
-from live2d_quality import LIVE2D_SCALE_MAX, LIVE2D_SCALE_MIN, clamp_live2d_scale, normalize_live2d_quality
+from live2d_quality import clamp_live2d_scale, normalize_live2d_quality
 from live2d_widget import DEFAULT_HIT_ALPHA_THRESHOLD, DEFAULT_LIP_SYNC_MAX_OPEN, Live2DWidget
 from model_manager import ModelManager
 from process_utils import app_base_dir, ipc_server_name, process_program_and_args
@@ -408,8 +409,6 @@ class PetWindow(QWidget):
         if not sys.platform.startswith("linux"):
             return False
         try:
-            from PySide6.QtGui import QGuiApplication
-
             return "xcb" in QGuiApplication.platformName().lower()
         except Exception:
             return False
@@ -631,8 +630,6 @@ class PetWindow(QWidget):
             return
         if self._live2d_widget._dragging or self._pixel_widget._dragging:
             return
-        from PySide6.QtGui import QCursor
-
         global_pos = QCursor.pos()
         if not self.geometry().contains(global_pos):
             self._set_mouse_passthrough(False)
@@ -717,7 +714,7 @@ class PetWindow(QWidget):
         self._position_save_timer.start()
 
     def _init_tray(self):
-        from PySide6.QtWidgets import QMenu, QSystemTrayIcon
+        from PySide6.QtWidgets import QMenu
         from tray_utils import keep_tray_icon_visible, load_tray_icon
 
         self._tray_icon = QSystemTrayIcon(self)
@@ -890,8 +887,6 @@ class PetWindow(QWidget):
             return
         if now is None:
             now = time.monotonic()
-        from PySide6.QtGui import QCursor
-
         cursor = QCursor.pos()
         approach_radius = max(
             LIVE2D_MOUSE_APPROACH_RADIUS,
@@ -1205,8 +1200,6 @@ class PetWindow(QWidget):
         self._sync_compact_ai_window()
 
     def _on_tray_activated(self, reason):
-        from PySide6.QtWidgets import QSystemTrayIcon
-
         if sys.platform == "darwin":
             return
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
@@ -2421,8 +2414,6 @@ class PetWindow(QWidget):
         if self._show_pos_set and self._is_position_on_screen():
             self._sync_compact_ai_window(allow_create=True)
             return
-        from PySide6.QtGui import QGuiApplication
-
         screen = QGuiApplication.primaryScreen()
         if screen:
             geo = screen.availableGeometry()
@@ -2435,8 +2426,6 @@ class PetWindow(QWidget):
         self._sync_compact_ai_window(allow_create=True)
 
     def _is_position_on_screen(self) -> bool:
-        from PySide6.QtGui import QGuiApplication
-
         screen = QGuiApplication.primaryScreen()
         if screen is None:
             return False

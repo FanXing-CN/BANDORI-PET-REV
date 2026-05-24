@@ -117,7 +117,7 @@ def _bleed_transparent_edges(image: Image.Image, passes: int) -> Image.Image:
         for y in range(height):
             for x in range(width):
                 alpha = pixels[x, y][3]
-                if alpha >= 255:
+                if alpha != 0:
                     continue
 
                 red = green = blue = count = 0
@@ -130,7 +130,7 @@ def _bleed_transparent_edges(image: Image.Image, passes: int) -> Image.Image:
                     if nx < 0 or ny < 0 or nx >= width or ny >= height:
                         continue
                     nr, ng, nb, na = pixels[nx, ny]
-                    if na <= alpha:
+                    if na <= 0:
                         continue
                     red += nr
                     green += ng
@@ -153,7 +153,26 @@ def _resize_for_quality(image: Image.Image, scale: float) -> Image.Image:
     width = max(1, int(image.width * scale))
     height = max(1, int(image.height * scale))
     resampling = getattr(Image, "Resampling", Image).BILINEAR
-    return image.resize((width, height), resampling)
+    data = bytearray(image.tobytes())
+    for i in range(0, len(data), 4):
+        alpha = data[i + 3]
+        data[i] = (data[i] * alpha + 127) // 255
+        data[i + 1] = (data[i + 1] * alpha + 127) // 255
+        data[i + 2] = (data[i + 2] * alpha + 127) // 255
+
+    premultiplied = Image.frombytes("RGBA", image.size, bytes(data))
+    resized = premultiplied.resize((width, height), resampling)
+    premultiplied.close()
+    data = bytearray(resized.tobytes())
+    resized.close()
+    for i in range(0, len(data), 4):
+        alpha = data[i + 3]
+        if alpha <= 0:
+            continue
+        data[i] = min(255, (data[i] * 255 + alpha // 2) // alpha)
+        data[i + 1] = min(255, (data[i + 1] * 255 + alpha // 2) // alpha)
+        data[i + 2] = min(255, (data[i + 2] * 255 + alpha // 2) // alpha)
+    return Image.frombytes("RGBA", (width, height), bytes(data))
 
 
 def _texture_rgba(path: str, profile: str) -> tuple[int, int, bytes, bool]:
@@ -375,6 +394,7 @@ class LuaLive2DModule:
             entry[b"height"] = h
             entry[b"data"] = rgba
             entry[b"mipmap"] = use_mipmap
+            entry[b"edge_bleed"] = False
             return entry
 
         resources = lua.table()
