@@ -829,16 +829,6 @@ class CompactAIWindow(QWidget):
 
     def _build_messages(self) -> list[dict]:
         system_prompt = build_system_prompt(self._character, self._cfg)
-        system_prompt += "\n\n" + build_relationship_context(
-            self._db,
-            self._character,
-            self._user_memory_key(),
-            self._display_user_name(),
-        )
-        if self._cfg and self._cfg.get("chat_integration_enabled", False) and self._cfg.get("chat_integration_include_context", True):
-            external_context = self._db.external_chat_context_text()
-            if external_context:
-                system_prompt += "\n\n" + external_context
         messages = [{"role": "system", "content": system_prompt}]
         history = [dict(item) for item in self._history[-12:]]
         now = datetime.now().strftime("%Y-%m-%d %I:%M %p")
@@ -847,6 +837,21 @@ class CompactAIWindow(QWidget):
                 history[i]["content"] = history[i].get("content", "") + f"\n\n【后置提示词】\n当前时间：{now}"
                 break
         messages.extend(history)
+        dynamic_parts = []
+        rel_ctx = build_relationship_context(
+            self._db,
+            self._character,
+            self._user_memory_key(),
+            self._display_user_name(),
+        )
+        if rel_ctx:
+            dynamic_parts.append(rel_ctx)
+        if self._cfg and self._cfg.get("chat_integration_enabled", False) and self._cfg.get("chat_integration_include_context", True):
+            external_context = self._db.external_chat_context_text()
+            if external_context:
+                dynamic_parts.append(external_context)
+        if dynamic_parts:
+            messages.append({"role": "system", "content": "\n\n".join(dynamic_parts)})
         return messages
 
     def _tool_config_snapshot(self) -> dict:

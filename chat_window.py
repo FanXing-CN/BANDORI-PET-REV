@@ -3770,7 +3770,7 @@ class ChatWindow(QWidget):
                 source_group_message_id=self._last_group_user_message_id,
             )
 
-    def _group_system_prompt(self, character: str, spoken_names: list[str]) -> str:
+    def _group_system_prompt(self, character: str) -> str:
         prompt = build_system_prompt(character, self._cfg)
         names = [self._model_manager.get_display_name(c) for c in self._group_characters]
         prompt += "\n\n【群聊规则】\n这是一个多人群聊。当前群聊成员：" + "、".join(names) + "。"
@@ -3782,8 +3782,6 @@ class ChatWindow(QWidget):
             "\n如果需要提到其他成员的反应，只能用你自己的视角转述，不能写出对方的原话。"
             "\n回复时不要添加任何角色名前缀或剧本标签，例如【角色名】、[角色名]、角色名：，程序会自动添加。"
         )
-        if spoken_names:
-            prompt += "\n你是在" + "、".join(spoken_names) + "之后发言，请自然承接前面角色的内容。"
         return prompt
 
     def _chat_attachment_dir(self) -> Path:
@@ -4064,17 +4062,7 @@ class ChatWindow(QWidget):
             self._show_reasoning = bool(self._cfg.get("llm_show_reasoning", True))
 
     def _build_messages_for_character(self, character: str, spoken_names: list[str]) -> list[dict]:
-        system_prompt = self._group_system_prompt(character, spoken_names) if self._is_group_chat else build_system_prompt(character, self._cfg)
-        system_prompt += "\n\n" + build_relationship_context(
-            self._db,
-            character,
-            self._user_memory_key(),
-            self._user_name or _tr("ChatWindow.you"),
-        )
-        if self._cfg and self._cfg.get("chat_integration_enabled", False) and self._cfg.get("chat_integration_include_context", True):
-            external_context = self._db.external_chat_context_text()
-            if external_context:
-                system_prompt += "\n\n" + external_context
+        system_prompt = self._group_system_prompt(character) if self._is_group_chat else build_system_prompt(character, self._cfg)
         messages = [{"role": "system", "content": system_prompt}]
         if self._is_group_chat:
             max_history = 20
@@ -4110,6 +4098,23 @@ class ChatWindow(QWidget):
                 else:
                     messages[i]["content"] = str(content) + time_suffix
                 break
+        dynamic_parts = []
+        rel_ctx = build_relationship_context(
+            self._db,
+            character,
+            self._user_memory_key(),
+            self._user_name or _tr("ChatWindow.you"),
+        )
+        if rel_ctx:
+            dynamic_parts.append(rel_ctx)
+        if self._is_group_chat and spoken_names:
+            dynamic_parts.append("你是在" + "、".join(spoken_names) + "之后发言，请自然承接前面角色的内容。")
+        if self._cfg and self._cfg.get("chat_integration_enabled", False) and self._cfg.get("chat_integration_include_context", True):
+            external_context = self._db.external_chat_context_text()
+            if external_context:
+                dynamic_parts.append(external_context)
+        if dynamic_parts:
+            messages.append({"role": "system", "content": "\n\n".join(dynamic_parts)})
         return messages
 
     def _send_message(self):
