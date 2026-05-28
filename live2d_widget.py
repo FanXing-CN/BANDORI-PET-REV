@@ -499,11 +499,11 @@ class Live2DWidget(QOpenGLWidget):
         self._model.Drag(local_x, local_y)
 
     def _poll_head_tracking(self):
-        if not self._head_tracking_enabled:
-            return
         # 优先使用注视目标（对视功能）
         if self._gaze_target is not None:
             self._track_head_at_global(*self._gaze_target)
+            return
+        if not self._head_tracking_enabled:
             return
         pos = QCursor.pos()
         self._track_head_at_global(pos.x(), pos.y())
