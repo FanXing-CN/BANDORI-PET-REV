@@ -3,7 +3,9 @@ import json
 import os
 import sys
 
-from process_utils import app_base_dir, ipc_server_name
+from process_utils import app_base_dir, configure_debug_logging, ipc_server_name
+
+configure_debug_logging()
 
 from PySide6.QtCore import QRect, Qt
 from PySide6.QtNetwork import QLocalSocket
@@ -62,6 +64,7 @@ def main():
     set_language(lang)
 
     app = QApplication(sys.argv)
+    install_parent_death_watch(app)
 
     if sys.platform == "darwin":
         import macos_patch

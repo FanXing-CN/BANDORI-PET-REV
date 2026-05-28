@@ -15,7 +15,7 @@ import fluent_bootstrap
 fluent_bootstrap.prefer_local_pyside6_fluent_widgets()
 
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QPropertyAnimation, QEasingCurve, QVariantAnimation, QPoint, QEvent, QUrl, QRectF, QRect, QSize, QTime
-from PySide6.QtGui import QColor, QPalette, QPixmap, QIcon, QCursor, QPainter, QPainterPath, QPen, QBrush, QIntValidator, QDoubleValidator, QDesktopServices, QFont, QTextCursor, QRegion
+from PySide6.QtGui import QColor, QPalette, QPixmap, QIcon, QCursor, QPainter, QPainterPath, QPen, QBrush, QIntValidator, QDoubleValidator, QDesktopServices, QFont, QTextCursor, QRegion, QKeyEvent
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout,
     QPushButton, QSizePolicy, QScrollArea,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QPlainTextEdit, QToolButton, QFileDialog, QMessageBox,
     QCheckBox,
 )
+from shiboken6 import isValid
 
 from qfluentwidgets import (
     CardWidget, PushButton, PrimaryPushButton, TransparentPushButton,
@@ -1700,9 +1701,13 @@ class SettingsWindow(QWidget):
             self._owns_live2d = False
 
     def eventFilter(self, watched, event):
-        if event.type() == QEvent.Type.KeyRelease and event.key() == Qt.Key.Key_Shift:
+        if not isinstance(event, QKeyEvent):
+            return super().eventFilter(watched, event)
+
+        event_type = event.type()
+        if event_type == QEvent.Type.KeyRelease and event.key() == Qt.Key.Key_Shift:
             self._hide_hover_costume_preview()
-        elif event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Shift:
+        elif event_type == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Shift:
             widget = QApplication.widgetAt(QCursor.pos())
             while widget is not None:
                 if isinstance(widget, CostumeItem):
@@ -1732,6 +1737,8 @@ class SettingsWindow(QWidget):
 
     @staticmethod
     def _animate_button_in(btn):
+        if btn is None or not isValid(btn):
+            return
         effect = QGraphicsOpacityEffect(btn)
         effect.setOpacity(0.0)
         btn.setGraphicsEffect(effect)
@@ -1740,7 +1747,7 @@ class SettingsWindow(QWidget):
         anim.setStartValue(0.0)
         anim.setEndValue(1.0)
         anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.finished.connect(lambda: btn.setGraphicsEffect(None))
+        anim.finished.connect(lambda: btn.setGraphicsEffect(None) if isValid(btn) else None)
         anim.start()
 
     def _cleanup_workers(self):

@@ -3,7 +3,9 @@ import json
 import os
 import sys
 
-from process_utils import app_base_dir, ensure_xwayland, set_windows_app_user_model_id
+from process_utils import app_base_dir, configure_debug_logging, ensure_xwayland, set_windows_app_user_model_id
+
+configure_debug_logging()
 
 BASE_DIR = str(app_base_dir())
 
@@ -104,6 +106,7 @@ def main():
 
     set_windows_app_user_model_id("BandoriPet.RadialMenu")
     app = QApplication(sys.argv)
+    install_parent_death_watch(app)
     app.setApplicationName("BandoriPet-RadialMenu")
     app.setOrganizationName("BandoriPet")
     app.setQuitOnLastWindowClosed(False)
