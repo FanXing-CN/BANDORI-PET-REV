@@ -3,7 +3,6 @@ import json
 import signal
 import threading
 import os
-import time
 import uuid
 
 from process_utils import (
@@ -20,7 +19,6 @@ BASE_DIR = str(app_base_dir())
 APP_AUMID = "BandoriPet"
 
 from PySide6.QtCore import Qt, QObject, QProcess, QTimer, Signal
-from PySide6.QtGui import QCursor
 from PySide6.QtNetwork import QLocalServer
 from shiboken6 import isValid
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
@@ -101,7 +99,7 @@ def main():
     # NSStatusItem can anchor its popup; without it the menu silently fails to
     # appear in NSApplicationActivationPolicyAccessory apps.
     tray_anchor = QWidget()
-    tray_ref = {"menu": None, "actions": [], "anchor": tray_anchor, "last_popup_at": 0.0}
+    tray_ref = {"menu": None, "actions": [], "anchor": tray_anchor}
     quit_ref = {"running": False}
 
     def init_tray():
@@ -127,14 +125,6 @@ def main():
         if reason != QSystemTrayIcon.ActivationReason.Trigger:
             return
         if sys.platform == "darwin":
-            # macOS NSStatusItem already pops the context menu on click, but the
-            # Qt bridge sometimes drops it in accessory apps — manually popup as
-            # a fallback, throttled to avoid double-firing.
-            menu = tray_ref.get("menu")
-            now = time.monotonic()
-            if menu is not None and now - tray_ref.get("last_popup_at", 0.0) > 0.3:
-                tray_ref["last_popup_at"] = now
-                menu.popup(QCursor.pos())
             return
         launch_settings_process(show_launch=False)
 
@@ -374,7 +364,7 @@ def main():
             broadcast_ipc_line(line)
         elif line.startswith("REMINDER_EVENT\t"):
             broadcast_ipc_line(line)
-        elif line.startswith("PEER_POS\t"):
+        elif line.startswith("PREVIEW_MOTION\t"):
             broadcast_ipc_line(line)
         elif line.startswith("MODEL\t") or line.startswith("SETTINGS\t") or line == "LAUNCH":
             handle_settings_line(line)
