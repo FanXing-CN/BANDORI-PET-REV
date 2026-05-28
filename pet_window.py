@@ -205,6 +205,9 @@ class PetWindow(QWidget):
         self._live2d_idle_actions_enabled = (
             bool(config_manager.get("live2d_idle_actions_enabled", True))
         )
+        self._live2d_head_tracking_enabled = (
+            bool(config_manager.get("live2d_head_tracking_enabled", True))
+        )
         self._live2d_quality = "balanced"
         self._live2d_scale = 100
         self._live2d_hit_alpha_threshold = DEFAULT_HIT_ALPHA_THRESHOLD
@@ -354,6 +357,7 @@ class PetWindow(QWidget):
         self._live2d_widget.set_render_quality(self._live2d_quality)
         self._live2d_widget.set_hit_alpha_threshold(self._live2d_hit_alpha_threshold)
         self._live2d_widget.set_lip_sync_max_open(self._live2d_lip_sync_max_open)
+        self._live2d_widget.set_head_tracking_enabled(self._live2d_head_tracking_enabled)
         self._live2d_widget.model_loaded.connect(self._on_live2d_model_loaded)
         self._stack.addWidget(self._live2d_widget)
 
@@ -651,6 +655,13 @@ class PetWindow(QWidget):
                 50,
                 lambda t=self._motion_guard_token: self._restore_default_motion(t, force_clear=False),
             )
+
+    def set_live2d_head_tracking_enabled(self, enabled: bool):
+        enabled = bool(enabled)
+        if self._live2d_head_tracking_enabled == enabled:
+            return
+        self._live2d_head_tracking_enabled = enabled
+        self._live2d_widget.set_head_tracking_enabled(enabled)
 
     def moveEvent(self, event):
         super().moveEvent(event)
@@ -1205,6 +1216,7 @@ class PetWindow(QWidget):
             "language",
             "hide_live2d_model",
             "live2d_idle_actions_enabled",
+            "live2d_head_tracking_enabled",
         }
         if self._cfg and any(key in data for key in compact_keys):
             self._cfg.load()
@@ -1234,6 +1246,8 @@ class PetWindow(QWidget):
                 self._cfg.set("hide_live2d_model", bool(data["hide_live2d_model"]))
             if "live2d_idle_actions_enabled" in data:
                 self._cfg.set("live2d_idle_actions_enabled", bool(data["live2d_idle_actions_enabled"]))
+            if "live2d_head_tracking_enabled" in data:
+                self._cfg.set("live2d_head_tracking_enabled", bool(data["live2d_head_tracking_enabled"]))
             if "user_avatar_color" in data:
                 self._cfg.set("user_avatar_color", data["user_avatar_color"])
             if "user_avatar_path" in data:
@@ -1264,6 +1278,8 @@ class PetWindow(QWidget):
             self.set_hide_live2d_model(data["hide_live2d_model"])
         if "live2d_idle_actions_enabled" in data:
             self.set_live2d_idle_actions_enabled(data["live2d_idle_actions_enabled"])
+        if "live2d_head_tracking_enabled" in data:
+            self.set_live2d_head_tracking_enabled(data["live2d_head_tracking_enabled"])
         if "live2d_quality" in data:
             self._live2d_quality = normalize_live2d_quality(data["live2d_quality"])
             self._live2d_widget.set_render_quality(self._live2d_quality)
@@ -2459,6 +2475,7 @@ class PetWindow(QWidget):
             self._cfg.set("game_topmost", self._game_topmost)
             self._cfg.set("hide_live2d_model", self._hide_live2d_model)
             self._cfg.set("live2d_idle_actions_enabled", self._live2d_idle_actions_enabled)
+            self._cfg.set("live2d_head_tracking_enabled", self._live2d_head_tracking_enabled)
             self._cfg.set("live2d_quality", self._live2d_quality)
             self._cfg.set("live2d_scale", self._live2d_scale)
             self._cfg.set("live2d_hit_alpha_threshold", self._live2d_hit_alpha_threshold)
