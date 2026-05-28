@@ -434,6 +434,7 @@ def main():
             ("game_topmost", "game_topmost", False),
             ("hide_live2d_model", "hide_live2d_model", False),
             ("live2d_idle_actions_enabled", "live2d_idle_actions_enabled", True),
+            ("live2d_head_tracking_enabled", "live2d_head_tracking_enabled", True),
             ("live2d_quality", "live2d_quality", "balanced"),
             ("live2d_scale", "live2d_scale", 100),
             ("compact_ai_window_enabled", "compact_ai_window_enabled", False),
