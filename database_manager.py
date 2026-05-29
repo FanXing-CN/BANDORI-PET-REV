@@ -23,6 +23,7 @@ _REQUIRED_COLUMNS = {
 
 _VALID_MESSAGE_ROLES = {"user", "assistant", "system"}
 _SAFE_CHAT_ATTACHMENT_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+_DATABASE_LOCK = threading.RLock()
 
 
 def _db_text(value, default: str = "") -> str:
@@ -448,8 +449,9 @@ def import_relationship_data(data, db_path=DB_PATH) -> dict:
 def _with_database_lock(method):
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        with self._lock:
-            return method(self, *args, **kwargs)
+        with _DATABASE_LOCK:
+            with self._lock:
+                return method(self, *args, **kwargs)
     return wrapper
 
 
@@ -467,6 +469,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     def __init__(self, db_path=DB_PATH):
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._create_tables()
