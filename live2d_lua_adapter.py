@@ -551,6 +551,7 @@ class LuaLAppModel:
         del disable_precision
         self._renderer = self._module._new_renderer(self._width, self._height)
         opts = self._module._new_options(model_json_path)
+        opts[b"time_msec"] = time.monotonic() * 1000.0
         self._module._load_model(
             self._renderer,
             _normalize_lua_path(model_json_path).encode("utf-8"),
