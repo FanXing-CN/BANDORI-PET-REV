@@ -131,8 +131,6 @@ class ModelManager:
         archive_paths = []
         for entry in entries:
             if entry.is_file() and entry.suffix.lower() == ".zst":
-                if entry.stem in self._characters:
-                    continue
                 archive_paths.append(entry)
 
         if not archive_paths:
@@ -286,10 +284,28 @@ class ModelManager:
             ModelManager._model_paths[(char_name, costume_id)] = model_path
         image_path = result["image_path"]
         if image_path:
-            ModelManager._character_images[result["character"]] = image_path
-        self._characters[result["character"]] = {
-            "costumes": result["costumes"],
-        }
+            ModelManager._character_images.setdefault(result["character"], image_path)
+        char_name = result["character"]
+        new_costumes = result["costumes"]
+        if char_name in self._characters:
+            existing_costumes = self._characters[char_name].get("costumes", [])
+            existing_ids = {c["id"] for c in existing_costumes}
+            for costume in new_costumes:
+                costume_id = costume["id"]
+                if costume_id in existing_ids:
+                    suffix = 1
+                    while f"{costume_id}_zst{suffix}" in existing_ids:
+                        suffix += 1
+                    costume["id"] = f"{costume_id}_zst{suffix}"
+                    existing_ids.add(costume["id"])
+                    ModelManager._model_paths[(char_name, costume["id"])] = costume["path"]
+                else:
+                    existing_ids.add(costume_id)
+            self._characters[char_name]["costumes"] = existing_costumes + new_costumes
+        else:
+            self._characters[char_name] = {
+                "costumes": new_costumes,
+            }
 
     def _parse_outfit_json(self):
         if not OUTFIT_JSON.exists():
