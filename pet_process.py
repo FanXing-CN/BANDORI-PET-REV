@@ -232,6 +232,7 @@ class Live2DGlRenderer:
         self.lip_form = 0.0
         self.lip_form_target = 0.0
         self.lip_last_at = -1000.0
+        self.default_motion_group = ""
 
     def init_gl(self):
         self.live2d.glInit()
@@ -252,6 +253,7 @@ class Live2DGlRenderer:
             self.model.Resize(self.width, self.height)
             self.model.LoadModelJson(model_json_path, disable_precision=self.disable_precision)
             self.model_path = model_json_path
+            self.default_motion_group = self._default_motion_group()
         finally:
             if is_virtual_path(model_json_path):
                 clear_virtual_byte_cache()
@@ -271,8 +273,31 @@ class Live2DGlRenderer:
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
         if self.model is None:
             return
+        self._ensure_default_motion()
         self._apply_lip_sync()
         self.model.Draw()
+
+    def _default_motion_group(self) -> str:
+        if self.model is None or self.model.modelSetting is None:
+            return ""
+        names = self.model.modelSetting.getMotionNames()
+        lower_names = {str(name).lower(): str(name) for name in names}
+        for candidate in ("idle", "default"):
+            if candidate in lower_names:
+                return lower_names[candidate]
+        for name in names:
+            if str(name).lower().startswith("idle"):
+                return str(name)
+        return ""
+
+    def _ensure_default_motion(self):
+        if self.model is None or not self.default_motion_group:
+            return
+        try:
+            if self.model.IsMotionFinished():
+                self.model.StartRandomMotion(self.default_motion_group, priority=self.live2d.MotionPriority.IDLE)
+        except Exception:
+            pass
 
     def set_lip_sync_pose(self, level: float, form: float = 0.0):
         self.lip_target = max(0.0, min(float(level), self.lip_max_open))
