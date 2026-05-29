@@ -257,6 +257,13 @@ DATA_CONFIG_KEYS = {
         "chat_integration_include_context",
         "chat_integration_port",
         "chat_integration_token",
+        "napcat_enabled",
+        "napcat_ws_url",
+        "napcat_access_token",
+        "napcat_auto_reply_enabled",
+        "napcat_reply_private",
+        "napcat_reply_group_at_only",
+        "napcat_reply_character",
     ),
     DATA_CATEGORY_MCP: (
         "llm_hide_tool_call_details",
