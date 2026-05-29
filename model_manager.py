@@ -144,20 +144,103 @@ class ModelManager:
                 if result is not None:
                     self._apply_archive_scan_result(result)
 
+    @staticmethod
+    def _is_model_json(json_path: Path) -> bool:
+        """检查 JSON 文件是否是 Live2D 模型配置文件"""
+        try:
+            data = json.loads(json_path.read_text(encoding="utf-8"))
+            # 模型配置文件必须包含 model 字段（指向 .moc 文件）
+            return "model" in data and isinstance(data["model"], str)
+        except (json.JSONDecodeError, OSError):
+            return False
+
     def _scan_model_dir(self, entry: Path):
         char_name = entry.name
         costumes = []
+        has_model_json = False
+        # 扫描子目录中的 model.json
         for costume_dir in sorted(entry.iterdir()):
             if not costume_dir.is_dir():
                 continue
             model_json = costume_dir / "model.json"
             if model_json.exists():
+                has_model_json = True
                 model_path = str(model_json.resolve())
                 costumes.append({
                     "id": costume_dir.name,
                     "path": model_path,
                 })
                 ModelManager._model_paths[(char_name, costume_dir.name)] = model_path
+            else:
+                # 没有 model.json，扫描子目录内的 *.model.json
+                for variant_file in sorted(costume_dir.glob("*.model.json")):
+                    has_model_json = True
+                    variant_name = f"{costume_dir.name}/{variant_file.stem.replace('.model', '')}"
+                    model_path = str(variant_file.resolve())
+                    costumes.append({
+                        "id": variant_name,
+                        "path": model_path,
+                    })
+                    ModelManager._model_paths[(char_name, variant_name)] = model_path
+                # 扫描其他合法模型 JSON 文件
+                for json_file in sorted(costume_dir.glob("*.json")):
+                    if json_file.name == "model.json" or json_file.name.endswith(".model.json"):
+                        continue
+                    if json_file.name in ("_custom.json", "outfit.json", "band.json", "config.json"):
+                        continue
+                    if self._is_model_json(json_file):
+                        has_model_json = True
+                        variant_name = f"{costume_dir.name}/{json_file.stem}"
+                        model_path = str(json_file.resolve())
+                        costumes.append({
+                            "id": variant_name,
+                            "path": model_path,
+                        })
+                        ModelManager._model_paths[(char_name, variant_name)] = model_path
+        # 扫描 *.model.json 变体文件
+        for variant_file in sorted(entry.glob("*.model.json")):
+            has_model_json = True
+            variant_name = variant_file.stem.replace(".model", "")
+            model_path = str(variant_file.resolve())
+            costumes.append({
+                "id": variant_name,
+                "path": model_path,
+            })
+            ModelManager._model_paths[(char_name, variant_name)] = model_path
+        # 只在没有找到标准模型文件时才扫描其他 JSON 文件
+        if not has_model_json:
+            for json_file in sorted(entry.glob("*.json")):
+                # 跳过已经处理的 model.json 和 *.model.json
+                if json_file.name == "model.json" or json_file.name.endswith(".model.json"):
+                    continue
+                # 跳过已知的非模型配置文件
+                if json_file.name in ("_custom.json", "outfit.json", "band.json", "config.json"):
+                    continue
+                # 检查是否是模型配置文件
+                if self._is_model_json(json_file):
+                    variant_name = json_file.stem
+                    model_path = str(json_file.resolve())
+                    costumes.append({
+                        "id": variant_name,
+                        "path": model_path,
+                    })
+                    ModelManager._model_paths[(char_name, variant_name)] = model_path
+        # 递归扫描二级子目录中的 model.json
+        for sub_dir in sorted(entry.iterdir()):
+            if not sub_dir.is_dir():
+                continue
+            for costume_dir in sorted(sub_dir.iterdir()):
+                if not costume_dir.is_dir():
+                    continue
+                model_json = costume_dir / "model.json"
+                if model_json.exists():
+                    model_path = str(model_json.resolve())
+                    costume_name = f"{sub_dir.name}/{costume_dir.name}"
+                    costumes.append({
+                        "id": costume_name,
+                        "path": model_path,
+                    })
+                    ModelManager._model_paths[(char_name, costume_name)] = model_path
         image_path = self._find_dir_character_image(entry)
         if image_path:
             ModelManager._character_images[char_name] = image_path
