@@ -45,9 +45,12 @@ SWP_NOSIZE = 0x0001
 SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
 SWP_FRAMECHANGED = 0x0020
+DWM_BB_ENABLE = 0x00000001
+DWM_BB_BLURREGION = 0x00000002
 
 if os.name == "nt":
     _user32 = ctypes.windll.user32
+    _gdi32 = ctypes.windll.gdi32
     _get_window_long = _user32.GetWindowLongPtrW
     _set_window_long = _user32.SetWindowLongPtrW
     _set_window_pos = _user32.SetWindowPos
@@ -55,6 +58,24 @@ if os.name == "nt":
     _call_window_proc = _user32.CallWindowProcW
     _def_window_proc = _user32.DefWindowProcW
     _get_cursor_pos = _user32.GetCursorPos
+    _create_rect_rgn = _gdi32.CreateRectRgn
+    _delete_object = _gdi32.DeleteObject
+
+    class _DWM_BLURBEHIND(ctypes.Structure):
+        _fields_ = [
+            ("dwFlags", ctypes.wintypes.DWORD),
+            ("fEnable", ctypes.wintypes.BOOL),
+            ("hRgnBlur", ctypes.wintypes.HANDLE),
+            ("fTransitionOnMaximized", ctypes.wintypes.BOOL),
+        ]
+
+    try:
+        _dwmapi = ctypes.windll.dwmapi
+        _dwm_enable_blur_behind_window = _dwmapi.DwmEnableBlurBehindWindow
+        _dwm_enable_blur_behind_window.argtypes = [ctypes.wintypes.HWND, ctypes.POINTER(_DWM_BLURBEHIND)]
+        _dwm_enable_blur_behind_window.restype = ctypes.c_long
+    except (AttributeError, OSError):
+        _dwm_enable_blur_behind_window = None
     _WNDPROC = ctypes.WINFUNCTYPE(
         ctypes.c_ssize_t,
         ctypes.wintypes.HWND,
@@ -66,6 +87,10 @@ if os.name == "nt":
     _get_window_long.restype = ctypes.c_ssize_t
     _set_window_long.argtypes = [ctypes.wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
     _set_window_long.restype = ctypes.c_ssize_t
+    _create_rect_rgn.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+    _create_rect_rgn.restype = ctypes.wintypes.HANDLE
+    _delete_object.argtypes = [ctypes.wintypes.HANDLE]
+    _delete_object.restype = ctypes.wintypes.BOOL
     _call_window_proc.argtypes = [
         ctypes.c_ssize_t,
         ctypes.wintypes.HWND,
@@ -83,6 +108,7 @@ if os.name == "nt":
     _def_window_proc.restype = ctypes.c_ssize_t
 else:
     _user32 = None
+    _gdi32 = None
     _get_window_long = None
     _set_window_long = None
     _set_window_pos = None
@@ -90,6 +116,10 @@ else:
     _call_window_proc = None
     _def_window_proc = None
     _get_cursor_pos = None
+    _create_rect_rgn = None
+    _delete_object = None
+    _dwm_enable_blur_behind_window = None
+    _DWM_BLURBEHIND = None
     _WNDPROC = None
 
 
@@ -633,6 +663,7 @@ class LightweightPet:
         glfw.window_hint(glfw.CLIENT_API, glfw.OPENGL_API)
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 2)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 1)
+        glfw.window_hint(glfw.ALPHA_BITS, 8)
         glfw.window_hint(glfw.DECORATED, glfw.FALSE)
         glfw.window_hint(glfw.FLOATING, glfw.TRUE)
         glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, glfw.TRUE)
@@ -654,15 +685,29 @@ class LightweightPet:
         if not self.hwnd:
             return
         style = _get_window_long(self.hwnd, GWL_EXSTYLE)
-        style |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
-        if self.opacity < 1.0:
-            style |= WS_EX_LAYERED
+        style |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED
         style &= ~WS_EX_APPWINDOW
         _set_window_long(self.hwnd, GWL_EXSTYLE, style)
-        if self.opacity < 1.0:
-            _set_layered_window_attributes(self.hwnd, 0, int(round(self.opacity * 255)), LWA_ALPHA)
+        _set_layered_window_attributes(self.hwnd, 0, int(round(self.opacity * 255)), LWA_ALPHA)
         self._install_windows_hit_test_hook()
         _set_window_pos(self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED)
+        self._enable_windows_framebuffer_transparency()
+
+    def _enable_windows_framebuffer_transparency(self):
+        if _dwm_enable_blur_behind_window is None or _create_rect_rgn is None or _DWM_BLURBEHIND is None:
+            return
+        region = _create_rect_rgn(0, 0, -1, -1)
+        if not region:
+            return
+        try:
+            blur = _DWM_BLURBEHIND()
+            blur.dwFlags = DWM_BB_ENABLE | DWM_BB_BLURREGION
+            blur.fEnable = True
+            blur.hRgnBlur = region
+            blur.fTransitionOnMaximized = False
+            _dwm_enable_blur_behind_window(self.hwnd, ctypes.byref(blur))
+        finally:
+            _delete_object(region)
 
     def _install_windows_hit_test_hook(self):
         if os.name != "nt" or not self.hwnd or _WNDPROC is None or self._original_wndproc:
@@ -719,8 +764,6 @@ class LightweightPet:
         return self._call_original_wndproc(hwnd, msg, wparam, lparam)
 
     def _set_mouse_passthrough(self, enabled: bool):
-        if self.native_hit_test:
-            return
         if os.name != "nt" or not self.hwnd or enabled == self.mouse_passthrough:
             return
         style = _get_window_long(self.hwnd, GWL_EXSTYLE)
