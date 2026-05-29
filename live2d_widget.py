@@ -1,5 +1,8 @@
 import ctypes
+import os
 import sys
+import time
+import numpy as np
 import OpenGL.GL as gl
 from PySide6.QtCore import Qt, QPoint, QElapsedTimer, QTimer, Signal
 from PySide6.QtGui import QCursor
@@ -8,6 +11,51 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 DEFAULT_HIT_ALPHA_THRESHOLD = 8
 DEFAULT_LIP_SYNC_MAX_OPEN = 0.55
+
+
+class _Live2DPerfProbe:
+    def __init__(self):
+        self.enabled = os.environ.get("BANDORI_LIVE2D_PROFILE", "").strip().lower() in {"1", "true", "yes", "on"}
+        self.interval = max(1.0, self._float_env("BANDORI_LIVE2D_PROFILE_INTERVAL", 5.0))
+        self._last_report = time.perf_counter()
+        self._stats = {}
+        self._frames = 0
+
+    @staticmethod
+    def _float_env(name: str, default: float) -> float:
+        try:
+            return float(os.environ.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    def now(self) -> float:
+        return time.perf_counter() if self.enabled else 0.0
+
+    def add(self, name: str, elapsed: float):
+        if not self.enabled:
+            return
+        total, count, max_elapsed = self._stats.get(name, (0.0, 0, 0.0))
+        self._stats[name] = (total + elapsed, count + 1, max(max_elapsed, elapsed))
+
+    def frame(self):
+        if not self.enabled:
+            return
+        self._frames += 1
+        now = time.perf_counter()
+        elapsed = now - self._last_report
+        if elapsed < self.interval:
+            return
+        fps = self._frames / elapsed if elapsed > 0 else 0.0
+        parts = [f"fps={fps:.1f}"]
+        for name in sorted(self._stats):
+            total, count, max_elapsed = self._stats[name]
+            avg_ms = (total / count * 1000.0) if count else 0.0
+            max_ms = max_elapsed * 1000.0
+            parts.append(f"{name}=avg:{avg_ms:.2f}ms max:{max_ms:.2f}ms n:{count}")
+        print("[Live2DPerf] " + " | ".join(parts), file=sys.stderr, flush=True)
+        self._stats.clear()
+        self._frames = 0
+        self._last_report = now
 
 class Live2DWidget(QOpenGLWidget):
     model_loaded = Signal()
@@ -93,6 +141,7 @@ class Live2DWidget(QOpenGLWidget):
         self._hit_clock = QElapsedTimer()
         self._hit_clock.start()
         self._custom_hit_areas = None
+        self._perf_probe = _Live2DPerfProbe()
         
         # 定时器设置
         self._render_timer = QTimer(self)
@@ -465,6 +514,7 @@ class Live2DWidget(QOpenGLWidget):
             self._drag_start_y = gpos.y()
 
     def _track_head_at_global(self, gx: float, gy: float):
+        t0 = self._perf_probe.now()
         if self._dragging or not self._model:
             return
             
@@ -494,6 +544,7 @@ class Live2DWidget(QOpenGLWidget):
             local_y = self._cache_h_half + dy * factor
             
         self._model.Drag(local_x, local_y)
+        self._perf_probe.add("head_track", self._perf_probe.now() - t0)
 
     def _poll_head_tracking(self):
         # 优先使用注视目标（对视功能）
@@ -543,6 +594,8 @@ class Live2DWidget(QOpenGLWidget):
         if (self._static_render and self._static_render_done) or not self._live2d or not self._model:
             return
 
+        t0 = self._perf_probe.now()
+        draw_start = 0.0
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.defaultFramebufferObject())
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendEquationSeparate(gl.GL_FUNC_ADD, gl.GL_FUNC_ADD)
@@ -551,9 +604,20 @@ class Live2DWidget(QOpenGLWidget):
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
 
         self._apply_lip_sync()
+        draw_start = self._perf_probe.now()
         self._model.Draw()
+        if self._perf_probe.enabled:
+            draw_elapsed = self._perf_probe.now() - draw_start
+            self._perf_probe.add("draw_py", draw_elapsed)
+            self._perf_probe.add("lua_update_draw", self._model.last_lua_update_draw_seconds)
+            self._perf_probe.add("lua_gc", self._model.last_lua_gc_seconds)
         if self._static_render:
             self._static_render_done = True
+        if self._perf_probe.enabled:
+            paint_elapsed = self._perf_probe.now() - t0
+            self._perf_probe.add("paintGL", paint_elapsed)
+            self._perf_probe.add("qt_gl_overhead_est", max(0.0, paint_elapsed - draw_elapsed))
+            self._perf_probe.frame()
 
     def _apply_lip_sync(self):
         now = self._hit_clock.elapsed() if self._hit_clock.isValid() else 0
@@ -595,10 +659,14 @@ class Live2DWidget(QOpenGLWidget):
 
     def _is_model_hit_at(self, x: float, y: float, *, sync: bool = False) -> bool:
         if not self._model: return False
-        state = None if sync else self._hit_state_at(x, y)
-        if state is None:
-            state = self._hit_state_at_sync(x, y)
-        return state is True
+        t0 = self._perf_probe.now()
+        try:
+            state = None if sync else self._hit_state_at(x, y)
+            if state is None:
+                state = self._hit_state_at_sync(x, y)
+            return state is True
+        finally:
+            self._perf_probe.add("hit_test", self._perf_probe.now() - t0)
 
     def _emit_right_click(self, x: float, y: float, gx: float, gy: float) -> bool:
         if self._right_click_callback and self._is_model_hit_at(x, y, sync=True):
@@ -680,6 +748,7 @@ class Live2DWidget(QOpenGLWidget):
         return bounds
 
     def _read_visible_model_bounds(self):
+        t0 = self._perf_probe.now()
         width, height = int(self._cache_w * self._system_scale), int(self._cache_h * self._system_scale)
         if width <= 0 or height <= 0: return None
         
@@ -691,28 +760,23 @@ class Live2DWidget(QOpenGLWidget):
 
         if not data: return None
 
-        raw = bytes(data)
-        min_x, max_x = width, -1
-        min_y, max_y = height, -1
-        stride, threshold = width * 4, self._hit_alpha_threshold
         step = 1 if width * height <= 600000 else 2
-        
-        for y_gl in range(0, height, step):
-            row_offset = y_gl * stride
-            hit_in_row = False
-            for x in range(0, width, step):
-                if raw[row_offset + x * 4 + 3] > threshold:
-                    hit_in_row = True
-                    if x < min_x: min_x = x
-                    if x > max_x: max_x = x
-            if hit_in_row:
-                qt_y = height - 1 - y_gl
-                if qt_y < min_y: min_y = qt_y
-                if qt_y > max_y: max_y = qt_y
 
-        if max_x < min_x or max_y < min_y: return None
+        alpha = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 4))[::step, ::step, 3]
+        hit_y, hit_x = np.nonzero(alpha > self._hit_alpha_threshold)
+        if hit_x.size == 0: return None
+
+        min_x = int(hit_x.min()) * step
+        max_x = int(hit_x.max()) * step
+        min_y_gl = int(hit_y.min()) * step
+        max_y_gl = int(hit_y.max()) * step
+        min_y = height - 1 - max_y_gl
+        max_y = height - 1 - min_y_gl
+
         scale = self._system_scale or 1.0
-        return (min_x / scale, (max_x + step) / scale, min_y / scale, (max_y + step) / scale)
+        result = (min_x / scale, (max_x + step) / scale, min_y / scale, (max_y + step) / scale)
+        self._perf_probe.add("visible_bounds", self._perf_probe.now() - t0)
+        return result
 
     def _init_hit_pbos(self):
         if self._hit_pbo_supported is not None: return
@@ -752,6 +816,7 @@ class Live2DWidget(QOpenGLWidget):
 
     def _process_hit_pbo_results(self):
         if not self._hit_pbo_supported or not self._hit_pbo_pending: return
+        t0 = self._perf_probe.now()
         
         ready, still_pending = [], []
         for request in self._hit_pbo_pending:
@@ -779,6 +844,7 @@ class Live2DWidget(QOpenGLWidget):
                 self._safe_unbind_pbo()
                 if fence:
                     gl.glDeleteSync(fence)
+        self._perf_probe.add("pbo_process", self._perf_probe.now() - t0)
     
     def _insert_hit_cache(self, key, alpha, now):
         self._hit_alpha_cache[key] = (alpha, now)
@@ -791,6 +857,7 @@ class Live2DWidget(QOpenGLWidget):
         if not self._hit_pbo_supported or not self._hit_pbo_ids: return
         if key in self._hit_pbo_pending_keys or len(self._hit_pbo_pending) >= len(self._hit_pbo_ids):
             return
+        t0 = self._perf_probe.now()
 
         pbo = None
         for _ in self._hit_pbo_ids:
@@ -814,8 +881,10 @@ class Live2DWidget(QOpenGLWidget):
             self._clear_pending_hit_pbos()
         finally:
             self._safe_unbind_pbo()
+            self._perf_probe.add("pbo_queue", self._perf_probe.now() - t0)
 
     def _alpha_near(self, x: float, y: float, sync: bool = False):
+        t0 = self._perf_probe.now()
         alpha, known = 0, False
         fetch_method = self._get_alpha_sync if sync else self._get_alpha_fast
         
@@ -833,7 +902,9 @@ class Live2DWidget(QOpenGLWidget):
             if alpha > self._hit_alpha_threshold:
                 break
                 
-        return alpha if (known or sync) else None
+        result = alpha if (known or sync) else None
+        self._perf_probe.add("alpha_sync" if sync else "alpha_fast", self._perf_probe.now() - t0)
+        return result
 
     def _get_alpha_read_context(self, x: float, y: float):
         if not self._initialized_gl or not self._model: return None

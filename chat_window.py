@@ -34,6 +34,7 @@ from win32_dwm import apply_windows_11_border_fix
 import base64
 import math
 import mimetypes
+import numpy as np
 import os
 import shutil
 import sys
@@ -179,28 +180,30 @@ def _opaque_bounds(source: QPixmap) -> tuple[int, int, int, int]:
     width = image.width()
     height = image.height()
     step = max(1, min(width, height) // 180)
-    left = width
-    right = -1
-    top = height
-    bottom = -1
 
-    for y in range(0, height, step):
-        for x in range(0, width, step):
-            if image.pixelColor(x, y).alpha() <= 12:
-                continue
-            left = min(left, x)
-            right = max(right, x)
-            top = min(top, y)
-            bottom = max(bottom, y)
-
-    if right < left or bottom < top:
+    alpha = _qimage_alpha_array(image)[::step, ::step]
+    ys, xs = np.nonzero(alpha > 12)
+    if xs.size == 0:
         return 0, 0, width, height
+
+    left = int(xs.min()) * step
+    right = int(xs.max()) * step
+    top = int(ys.min()) * step
+    bottom = int(ys.max()) * step
     return (
         max(0, left - step),
         max(0, top - step),
         min(width, right + step + 1),
         min(height, bottom + step + 1),
     )
+
+
+def _qimage_alpha_array(image: QImage):
+    ptr = image.constBits()
+    row_bytes = image.bytesPerLine()
+    data = np.frombuffer(ptr, dtype=np.uint8, count=row_bytes * image.height())
+    rows = data.reshape((image.height(), row_bytes))[:, :image.width() * 4]
+    return rows.reshape((image.height(), image.width(), 4))[:, :, 3]
 
 
 def _avatar_crop(source: QPixmap, focus: str) -> QPixmap:
@@ -219,16 +222,11 @@ def _avatar_crop(source: QPixmap, focus: str) -> QPixmap:
     upper_bottom = top + int(content_h * 0.42)
     image = source.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
     step = max(1, min(width, height) // 180)
-    x_sum = 0
-    count = 0
+    alpha = _qimage_alpha_array(image)
+    region = alpha[top:min(bottom, upper_bottom):step, left:right:step]
+    _, xs = np.nonzero(region > 12)
 
-    for y in range(top, min(bottom, upper_bottom), step):
-        for x in range(left, right, step):
-            if image.pixelColor(x, y).alpha() > 12:
-                x_sum += x
-                count += 1
-
-    center_x = (x_sum / count) if count else left + content_w * 0.5
+    center_x = (left + float(xs.mean()) * step) if xs.size else left + content_w * 0.5
     center_y = top + content_h * 0.23
     side = max(content_h * 0.30, min(content_w, content_h) * 0.45)
     side = min(side, content_h * 0.38, width, height)

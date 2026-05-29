@@ -15,6 +15,7 @@ from zst_model_archive import is_virtual_path, load_virtual_bytes, split_virtual
 BASE_DIR = Path(app_base_dir())
 LIVE2D_LUA_DIR = BASE_DIR / "third_party" / "Live2D-v2-Lua"
 MODELS_DIR = BASE_DIR / "models"
+LIVE2D_PROFILE_ENABLED = os.environ.get("BANDORI_LIVE2D_PROFILE", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _normalize_lua_path(path) -> str:
@@ -472,6 +473,9 @@ class LuaLAppModel:
         self.matrixManager = _MatrixManager()
         self.expressions = {}
         self._pending_parameters = {}
+        self._profile_enabled = LIVE2D_PROFILE_ENABLED
+        self.last_lua_update_draw_seconds = 0.0
+        self.last_lua_gc_seconds = 0.0
 
     def LoadModelJson(self, model_json_path: str, disable_precision=False):
         del disable_precision
@@ -490,6 +494,7 @@ class LuaLAppModel:
         self._module._apply_texture_quality(self._renderer, get_live2d_texture_quality().encode("utf-8"))
         self._draw_opts = self._module._lua.table()
         self._draw_opts[b"clear"] = False
+        self._draw_opts[b"profile"] = self._profile_enabled
 
     def Resize(self, width: int, height: int):
         self._width = max(int(width), 1)
@@ -515,6 +520,9 @@ class LuaLAppModel:
         else:
             opts[b"parameters"] = None
         self._module._draw(self._renderer, opts)
+        if self._profile_enabled:
+            self.last_lua_update_draw_seconds = float(opts[b"profile_update_draw_seconds"] or 0.0)
+            self.last_lua_gc_seconds = float(opts[b"profile_gc_seconds"] or 0.0)
 
     def Drag(self, x: float, y: float):
         self._module._drag(self._renderer, float(x), float(y))

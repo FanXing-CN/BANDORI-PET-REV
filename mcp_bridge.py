@@ -9,8 +9,9 @@ import time
 import urllib.error
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QEventLoop, QUrl
+from PySide6.QtCore import QByteArray, QEventLoop, QThread, QUrl
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from PySide6.QtWidgets import QApplication
 
 from i18n_manager import tr as _tr
 from process_utils import app_base_dir, hidden_subprocess_kwargs
@@ -393,6 +394,10 @@ def _thread_nam() -> QNetworkAccessManager:
 
 
 def _request_http_json(server: dict, payload: dict) -> dict:
+    return _run_off_gui_thread(lambda: _request_http_json_direct(server, payload))
+
+
+def _request_http_json_direct(server: dict, payload: dict) -> dict:
     url = str(server.get("url", "") or "").strip()
     if not url:
         raise ValueError(_tr("McpBridge.http_url_empty", default="HTTP MCP server url is empty"))
@@ -442,6 +447,30 @@ def _request_http_json(server: dict, payload: dict) -> dict:
                 return json.loads(data)
         raise ValueError(_tr("McpBridge.http_empty_event_stream", default="HTTP MCP server returned empty event stream"))
     return json.loads(raw)
+
+
+def _run_off_gui_thread(fn):
+    app = QApplication.instance()
+    if app is None or QThread.currentThread() is not app.thread():
+        return fn()
+
+    done = threading.Event()
+    result = {}
+
+    def worker():
+        try:
+            result["value"] = fn()
+        except Exception as exc:
+            result["error"] = exc
+        finally:
+            done.set()
+
+    threading.Thread(target=worker, daemon=True).start()
+    while not done.wait(0.02):
+        app.processEvents()
+    if "error" in result:
+        raise result["error"]
+    return result.get("value")
 
 
 def _http_request_with_init(server: dict, method: str, params: dict | None = None) -> dict:
