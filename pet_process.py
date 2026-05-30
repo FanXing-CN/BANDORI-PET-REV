@@ -1017,12 +1017,6 @@ class LightweightPet:
 
     def _enable_windows_framebuffer_transparency(self):
         is_win11 = is_windows_11_or_later()
-        if _dwm_extend_frame_into_client_area is not None and _MARGINS is not None and is_win11:
-            margins = _MARGINS(-1, -1, -1, -1)
-            try:
-                _dwm_extend_frame_into_client_area(self.hwnd, ctypes.byref(margins))
-            except Exception:
-                pass
         if _dwm_enable_blur_behind_window is None or _DWM_BLURBEHIND is None:
             return
         blur = _DWM_BLURBEHIND()
