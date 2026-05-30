@@ -44,6 +44,11 @@ WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_APPWINDOW = 0x00040000
 WS_EX_NOACTIVATE = 0x08000000
 LWA_ALPHA = 0x00000002
+ULW_ALPHA = 0x00000002
+AC_SRC_OVER = 0x00
+AC_SRC_ALPHA = 0x01
+BI_RGB = 0
+DIB_RGB_COLORS = 0
 WM_NCHITTEST = 0x0084
 HTTRANSPARENT = -1
 HWND_TOPMOST = -1
@@ -62,11 +67,50 @@ if os.name == "nt":
     _set_window_long = _user32.SetWindowLongPtrW
     _set_window_pos = _user32.SetWindowPos
     _set_layered_window_attributes = _user32.SetLayeredWindowAttributes
+    _update_layered_window = _user32.UpdateLayeredWindow
+    _get_dc = _user32.GetDC
+    _release_dc = _user32.ReleaseDC
     _call_window_proc = _user32.CallWindowProcW
     _def_window_proc = _user32.DefWindowProcW
     _get_cursor_pos = _user32.GetCursorPos
+    _create_compatible_dc = _gdi32.CreateCompatibleDC
+    _create_dib_section = _gdi32.CreateDIBSection
+    _select_object = _gdi32.SelectObject
     _create_rect_rgn = _gdi32.CreateRectRgn
     _delete_object = _gdi32.DeleteObject
+    _delete_dc = _gdi32.DeleteDC
+
+    class _POINT(ctypes.Structure):
+        _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+    class _SIZE(ctypes.Structure):
+        _fields_ = [("cx", ctypes.c_long), ("cy", ctypes.c_long)]
+
+    class _BLENDFUNCTION(ctypes.Structure):
+        _fields_ = [
+            ("BlendOp", ctypes.c_ubyte),
+            ("BlendFlags", ctypes.c_ubyte),
+            ("SourceConstantAlpha", ctypes.c_ubyte),
+            ("AlphaFormat", ctypes.c_ubyte),
+        ]
+
+    class _BITMAPINFOHEADER(ctypes.Structure):
+        _fields_ = [
+            ("biSize", ctypes.wintypes.DWORD),
+            ("biWidth", ctypes.wintypes.LONG),
+            ("biHeight", ctypes.wintypes.LONG),
+            ("biPlanes", ctypes.wintypes.WORD),
+            ("biBitCount", ctypes.wintypes.WORD),
+            ("biCompression", ctypes.wintypes.DWORD),
+            ("biSizeImage", ctypes.wintypes.DWORD),
+            ("biXPelsPerMeter", ctypes.wintypes.LONG),
+            ("biYPelsPerMeter", ctypes.wintypes.LONG),
+            ("biClrUsed", ctypes.wintypes.DWORD),
+            ("biClrImportant", ctypes.wintypes.DWORD),
+        ]
+
+    class _BITMAPINFO(ctypes.Structure):
+        _fields_ = [("bmiHeader", _BITMAPINFOHEADER), ("bmiColors", ctypes.wintypes.DWORD * 3)]
 
     class _DWM_BLURBEHIND(ctypes.Structure):
         _fields_ = [
@@ -106,10 +150,41 @@ if os.name == "nt":
     _get_window_long.restype = ctypes.c_ssize_t
     _set_window_long.argtypes = [ctypes.wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
     _set_window_long.restype = ctypes.c_ssize_t
+    _update_layered_window.argtypes = [
+        ctypes.wintypes.HWND,
+        ctypes.wintypes.HDC,
+        ctypes.POINTER(_POINT),
+        ctypes.POINTER(_SIZE),
+        ctypes.wintypes.HDC,
+        ctypes.POINTER(_POINT),
+        ctypes.wintypes.COLORREF,
+        ctypes.POINTER(_BLENDFUNCTION),
+        ctypes.wintypes.DWORD,
+    ]
+    _update_layered_window.restype = ctypes.wintypes.BOOL
+    _get_dc.argtypes = [ctypes.wintypes.HWND]
+    _get_dc.restype = ctypes.wintypes.HDC
+    _release_dc.argtypes = [ctypes.wintypes.HWND, ctypes.wintypes.HDC]
+    _release_dc.restype = ctypes.c_int
+    _create_compatible_dc.argtypes = [ctypes.wintypes.HDC]
+    _create_compatible_dc.restype = ctypes.wintypes.HDC
+    _create_dib_section.argtypes = [
+        ctypes.wintypes.HDC,
+        ctypes.POINTER(_BITMAPINFO),
+        ctypes.wintypes.UINT,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.wintypes.HANDLE,
+        ctypes.wintypes.DWORD,
+    ]
+    _create_dib_section.restype = ctypes.wintypes.HBITMAP
+    _select_object.argtypes = [ctypes.wintypes.HDC, ctypes.wintypes.HGDIOBJ]
+    _select_object.restype = ctypes.wintypes.HGDIOBJ
     _create_rect_rgn.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
     _create_rect_rgn.restype = ctypes.wintypes.HANDLE
     _delete_object.argtypes = [ctypes.wintypes.HANDLE]
     _delete_object.restype = ctypes.wintypes.BOOL
+    _delete_dc.argtypes = [ctypes.wintypes.HDC]
+    _delete_dc.restype = ctypes.wintypes.BOOL
     _call_window_proc.argtypes = [
         ctypes.c_ssize_t,
         ctypes.wintypes.HWND,
@@ -132,16 +207,27 @@ else:
     _set_window_long = None
     _set_window_pos = None
     _set_layered_window_attributes = None
+    _update_layered_window = None
+    _get_dc = None
+    _release_dc = None
     _call_window_proc = None
     _def_window_proc = None
     _get_cursor_pos = None
+    _create_compatible_dc = None
+    _create_dib_section = None
+    _select_object = None
     _create_rect_rgn = None
     _delete_object = None
+    _delete_dc = None
     _dwm_enable_blur_behind_window = None
     _dwm_extend_frame_into_client_area = None
     _DWM_BLURBEHIND = None
     _MARGINS = None
     _WNDPROC = None
+    _POINT = None
+    _SIZE = None
+    _BLENDFUNCTION = None
+    _BITMAPINFO = None
 
 _x11 = None
 _x11_open_display = None
@@ -778,6 +864,14 @@ class LightweightPet:
         self.native_hit_test = False
         self._original_wndproc = 0
         self._wndproc = None
+        self.layered_blit = os.name == "nt" and is_windows_11_or_later()
+        self._layered_screen_dc = None
+        self._layered_mem_dc = None
+        self._layered_bitmap = None
+        self._layered_old_bitmap = None
+        self._layered_bits_addr = 0
+        self._layered_buffer_size = 0
+        self._layered_pixels = None
         self.dragging = False
         self.drag_moved = False
         self.pressed_on_model = False
@@ -820,7 +914,7 @@ class LightweightPet:
             self.renderer.load_model(self.model_path)
             if not self.hide:
                 glfw.show_window(self.window)
-                if os.name == "nt":
+                if os.name == "nt" and not self.layered_blit:
                     self._enable_windows_framebuffer_transparency()
                 self._set_mouse_passthrough(True)
             frame_interval = 1.0 / self.fps
@@ -835,7 +929,10 @@ class LightweightPet:
                 now = time.monotonic()
                 if now >= next_frame:
                     self.renderer.draw()
-                    glfw.swap_buffers(self.window)
+                    if self.layered_blit:
+                        self._present_windows_layered_blit()
+                    else:
+                        glfw.swap_buffers(self.window)
                     next_frame = now + frame_interval
                 else:
                     time.sleep(min(0.004, next_frame - now))
@@ -846,6 +943,7 @@ class LightweightPet:
             self.radial.close(force=True)
             self._restore_windows_hit_test_hook()
             self._close_x11_input_support()
+            self._dispose_windows_layered_blit()
             self.renderer.dispose()
             if self.window is not None:
                 glfw.destroy_window(self.window)
@@ -1009,11 +1107,18 @@ class LightweightPet:
             return
         style = _get_window_long(self.hwnd, GWL_EXSTYLE)
         style |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
-        style &= ~(WS_EX_APPWINDOW | WS_EX_LAYERED)
+        style &= ~WS_EX_APPWINDOW
+        if self.layered_blit:
+            style |= WS_EX_LAYERED
+        else:
+            style &= ~WS_EX_LAYERED
         _set_window_long(self.hwnd, GWL_EXSTYLE, style)
         self._install_windows_hit_test_hook()
         _set_window_pos(self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED)
-        self._enable_windows_framebuffer_transparency()
+        if self.layered_blit:
+            self._init_windows_layered_blit()
+        else:
+            self._enable_windows_framebuffer_transparency()
 
     def _enable_windows_framebuffer_transparency(self):
         is_win11 = is_windows_11_or_later()
@@ -1036,6 +1141,135 @@ class LightweightPet:
         finally:
             if blur_region and _delete_object is not None:
                 _delete_object(blur_region)
+
+    def _init_windows_layered_blit(self):
+        if (
+            os.name != "nt"
+            or not self.hwnd
+            or _get_dc is None
+            or _create_compatible_dc is None
+            or _create_dib_section is None
+        ):
+            self.layered_blit = False
+            return
+        try:
+            self._layered_screen_dc = _get_dc(None)
+            self._layered_mem_dc = _create_compatible_dc(self._layered_screen_dc)
+            if not self._layered_screen_dc or not self._layered_mem_dc:
+                raise OSError("failed to create layered window DC")
+
+            bitmap_info = _BITMAPINFO()
+            bitmap_info.bmiHeader.biSize = ctypes.sizeof(_BITMAPINFOHEADER)
+            bitmap_info.bmiHeader.biWidth = int(self.width)
+            # Positive height matches OpenGL's bottom-up glReadPixels layout.
+            bitmap_info.bmiHeader.biHeight = int(self.height)
+            bitmap_info.bmiHeader.biPlanes = 1
+            bitmap_info.bmiHeader.biBitCount = 32
+            bitmap_info.bmiHeader.biCompression = BI_RGB
+            bitmap_info.bmiHeader.biSizeImage = int(self.width * self.height * 4)
+            bits = ctypes.c_void_p()
+            self._layered_bitmap = _create_dib_section(
+                self._layered_mem_dc,
+                ctypes.byref(bitmap_info),
+                DIB_RGB_COLORS,
+                ctypes.byref(bits),
+                None,
+                0,
+            )
+            if not self._layered_bitmap or not bits.value:
+                raise OSError("failed to create layered window bitmap")
+            self._layered_old_bitmap = _select_object(self._layered_mem_dc, self._layered_bitmap)
+            self._layered_bits_addr = int(bits.value)
+            self._layered_buffer_size = int(self.width * self.height * 4)
+            try:
+                import numpy as np
+
+                raw = (ctypes.c_ubyte * self._layered_buffer_size).from_address(self._layered_bits_addr)
+                self._layered_pixels = np.ctypeslib.as_array(raw).reshape((self.height, self.width, 4))
+            except Exception:
+                self._layered_pixels = None
+        except Exception as exc:
+            print(f"Win11 layered transparency fallback disabled: {exc}", file=sys.stderr)
+            self.layered_blit = False
+            self._dispose_windows_layered_blit()
+            self._enable_windows_framebuffer_transparency()
+
+    def _present_windows_layered_blit(self):
+        if not self.layered_blit or not self._layered_bits_addr or _update_layered_window is None:
+            return
+        gl.glReadPixels(
+            0,
+            0,
+            self.width,
+            self.height,
+            gl.GL_BGRA,
+            gl.GL_UNSIGNED_BYTE,
+            ctypes.c_void_p(self._layered_bits_addr),
+        )
+        if self._layered_pixels is not None:
+            rgb = self._layered_pixels[:, :, :3]
+            alpha = self._layered_pixels[:, :, 3:4].astype("uint16")
+            rgb[:] = ((rgb.astype("uint16") * alpha + 127) // 255).astype("uint8")
+        else:
+            pixels = (ctypes.c_ubyte * self._layered_buffer_size).from_address(self._layered_bits_addr)
+            for i in range(0, self._layered_buffer_size, 4):
+                alpha = pixels[i + 3]
+                if alpha == 0:
+                    pixels[i] = 0
+                    pixels[i + 1] = 0
+                    pixels[i + 2] = 0
+                elif alpha < 255:
+                    pixels[i] = (pixels[i] * alpha + 127) // 255
+                    pixels[i + 1] = (pixels[i + 1] * alpha + 127) // 255
+                    pixels[i + 2] = (pixels[i + 2] * alpha + 127) // 255
+
+        wx, wy = glfw.get_window_pos(self.window)
+        dst_pos = _POINT(int(wx), int(wy))
+        size = _SIZE(int(self.width), int(self.height))
+        src_pos = _POINT(0, 0)
+        blend = _BLENDFUNCTION(AC_SRC_OVER, 0, 255, AC_SRC_ALPHA)
+        _update_layered_window(
+            self.hwnd,
+            self._layered_screen_dc,
+            ctypes.byref(dst_pos),
+            ctypes.byref(size),
+            self._layered_mem_dc,
+            ctypes.byref(src_pos),
+            0,
+            ctypes.byref(blend),
+            ULW_ALPHA,
+        )
+
+    def _dispose_windows_layered_blit(self):
+        if os.name != "nt":
+            return
+        if self._layered_mem_dc and self._layered_old_bitmap and _select_object is not None:
+            try:
+                _select_object(self._layered_mem_dc, self._layered_old_bitmap)
+            except Exception:
+                pass
+        if self._layered_bitmap and _delete_object is not None:
+            try:
+                _delete_object(self._layered_bitmap)
+            except Exception:
+                pass
+        if self._layered_mem_dc and _delete_dc is not None:
+            try:
+                _delete_dc(self._layered_mem_dc)
+            except Exception:
+                pass
+        if self._layered_screen_dc and _release_dc is not None:
+            try:
+                _release_dc(None, self._layered_screen_dc)
+            except Exception:
+                pass
+        self._layered_screen_dc = None
+        self._layered_mem_dc = None
+        self._layered_bitmap = None
+        self._layered_old_bitmap = None
+        self._layered_bits_addr = 0
+        self._layered_buffer_size = 0
+        self._layered_pixels = None
 
     def _install_windows_hit_test_hook(self):
         if os.name != "nt" or not self.hwnd or _WNDPROC is None or self._original_wndproc:
