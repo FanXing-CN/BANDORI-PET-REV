@@ -2517,6 +2517,16 @@ class SettingsWindow(
             return int(self._fps_slider.value())
         return int(self._fps)
 
+    def _current_opacity_setting(self) -> float:
+        if hasattr(self, "_opacity_slider"):
+            return self._opacity_slider.value() / 100.0
+        return float(self._opacity)
+
+    def _current_theme_setting(self):
+        if hasattr(self, "_theme_combo"):
+            return self._theme_combo.currentData()
+        return self._cfg.get("dark_theme", _THEME_FOLLOW_SYSTEM) if self._cfg else _THEME_FOLLOW_SYSTEM
+
     def _current_vsync_setting(self) -> bool:
         if hasattr(self, "_vsync_switch"):
             return bool(self._vsync_switch.isChecked())
@@ -2553,8 +2563,8 @@ class SettingsWindow(
         settings = {
             "language": current_language(),
             "fps": self._current_fps_setting(),
-            "opacity": self._opacity_slider.value() / 100.0,
-            "dark_theme": self._theme_combo.currentData(),
+            "opacity": self._current_opacity_setting(),
+            "dark_theme": self._current_theme_setting(),
             "vsync": self._current_vsync_setting(),
             "game_topmost": self._game_topmost_switch.isChecked(),
             "chat_window_normal_window": self._chat_window_normal_window_switch.isChecked(),
