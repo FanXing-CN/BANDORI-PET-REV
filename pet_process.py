@@ -813,6 +813,7 @@ class LightweightPet:
                 glfw.show_window(self.window)
                 if os.name == "nt":
                     self._enable_windows_framebuffer_transparency()
+                self._set_mouse_passthrough(True)
             frame_interval = 1.0 / self.fps
             next_frame = time.monotonic()
             while not glfw.window_should_close(self.window):
@@ -1349,7 +1350,7 @@ class LightweightPet:
         wx, wy = glfw.get_window_pos(self.window)
         inside = wx <= gx < wx + self.width and wy <= gy < wy + self.height
         if not inside:
-            self._set_mouse_passthrough(False)
+            self._set_mouse_passthrough(True)
             return
         lx, ly = gx - wx, gy - wy
         self._set_mouse_passthrough(not self.renderer.hit_at(lx, ly))
