@@ -2,6 +2,8 @@ import fluent_bootstrap
 
 fluent_bootstrap.prefer_local_pyside6_fluent_widgets()
 
+import logging
+
 from PySide6.QtCore import Qt, QObject, QThread, Signal, QTimer, QPropertyAnimation, QEasingCurve, QEvent, QRect, QRectF, QSize, QVariantAnimation, QParallelAnimationGroup
 from PySide6.QtGui import QFont, QColor, QPalette, QIcon, QKeyEvent, QPainter, QPainterPath, QPen, QPixmap, QImage, QRegion
 from PySide6.QtWidgets import (
@@ -149,7 +151,6 @@ _ASSIST_BUBBLE_LIGHT = "#ffffff"
 _ASSIST_BUBBLE_DARK = "#1b1f29"
 _TEAMS_ACCENT = "#6264a7"
 _TELEGRAM_ACCENT = BANDORI_PRIMARY
-_AVATAR_EXTENSIONS = AVATAR_EXTENSIONS
 _CHAT_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 _AVATAR_PIXMAP_CACHE = {}
 _AVATAR_PIXMAP_CACHE_LIMIT = 96
@@ -160,7 +161,6 @@ _GROUP_SIDEBAR_DEFAULT_RATIO = 0.28
 _GROUP_SIDEBAR_MIN_RATIO = 0.18
 _GROUP_SIDEBAR_MAX_RATIO = 0.46
 _GROUP_SIDEBAR_ANIMATION_MS = 180
-_INTERRUPT_COMMANDS = INTERRUPT_COMMANDS
 
 
 def _avatar_cache_key(path: str, data: bytes, size: int, focus: str):
@@ -3267,7 +3267,7 @@ class ChatWindow(QWidget):
             return
         source = Path(file_path)
         ext = source.suffix.lower()
-        if ext not in _AVATAR_EXTENSIONS:
+        if ext not in AVATAR_EXTENSIONS:
             ext = ".png"
         try:
             target_dir = self._avatar_storage_dir()
@@ -4462,7 +4462,7 @@ class ChatWindow(QWidget):
 
     @staticmethod
     def _is_interrupt_command(text: str) -> bool:
-        return text.strip().lower() in _INTERRUPT_COMMANDS
+        return text.strip().lower() in INTERRUPT_COMMANDS
 
     def _generation_busy(self) -> bool:
         return bool(
@@ -5861,7 +5861,7 @@ class ChatWindow(QWidget):
         self._tts_audio_buffers.setdefault(sequence, []).append((audio, media_type))
 
     def _on_tts_error(self, error_msg: str):
-        pass
+        logging.getLogger(__name__).warning("TTS error: %s", error_msg)
 
     def _on_tts_mouth_pose_changed(self, level: float, form: float):
         character = self._tts_characters.get(self._tts_playing_sequence)

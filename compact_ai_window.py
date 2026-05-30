@@ -1,5 +1,6 @@
 import ctypes
 import ctypes.wintypes
+import logging
 import os
 import re
 import sys
@@ -68,8 +69,6 @@ from relationship_memory import (
 from action_bus import publish_lip_sync
 from ui_helpers import INTERRUPT_COMMANDS
 from win32_dwm import apply_windows_11_border_fix
-
-_INTERRUPT_COMMANDS = INTERRUPT_COMMANDS
 
 if sys.platform == "darwin":
     import macos_patch
@@ -1180,7 +1179,7 @@ class CompactAIWindow(QWidget):
         self._tts_player.enqueue(audio, media_type)
 
     def _on_tts_error(self, error_msg: str):
-        pass
+        logging.getLogger(__name__).warning("TTS error: %s", error_msg)
 
     def _on_tts_worker_finished(self):
         if self.sender() is self._tts_worker:
@@ -1214,7 +1213,7 @@ class CompactAIWindow(QWidget):
 
     @staticmethod
     def _is_interrupt_command(text: str) -> bool:
-        return text.strip().lower() in _INTERRUPT_COMMANDS
+        return text.strip().lower() in INTERRUPT_COMMANDS
 
     def _interrupt_generation(self):
         worker = self._worker

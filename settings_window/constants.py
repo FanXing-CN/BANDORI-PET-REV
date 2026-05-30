@@ -136,7 +136,6 @@ from ui_helpers import AVATAR_EXTENSIONS, FluentContextTextEdit, rounded_avatar_
 
 _BG_LIGHT = "#ffffff"
 _BG_DARK = "#1e1e1e"
-_AVATAR_EXTENSIONS = AVATAR_EXTENSIONS
 MODEL_PACKAGE_BASE_URL = "https://modelscope.cn/datasets/HELPMEEADICE/BanG-Dream-Live2D/resolve/master/models"
 
 _ROLEPLAY_STATUS_COLORS = {

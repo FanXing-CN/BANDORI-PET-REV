@@ -299,10 +299,6 @@ def _save_config(data: dict):
         raise
 
 
-def _cfg_get(config: dict, key: str, default=None):
-    return config.get(key, default)
-
-
 def _clamp_float(value, low: float, high: float, default: float) -> float:
     try:
         number = float(value)
@@ -745,19 +741,19 @@ class LightweightPet:
         self.group_characters = _parse_group_characters(args.group_characters, self.character)
         self.entry = _model_entry(self.config, self.character, self.costume)
         self.model_path = args.model_path or self.entry.get("path", "")
-        self.fps = _clamp_int(_cfg_get(self.config, "fps", 120), 10, 240, 120)
-        self.opacity = _clamp_float(_cfg_get(self.config, "opacity", 1.0), 0.05, 1.0, 1.0)
-        self.vsync = bool(_cfg_get(self.config, "vsync", True))
-        self.drag_locked = bool(_cfg_get(self.config, "drag_locked", False))
-        self.hide = bool(_cfg_get(self.config, "hide_live2d_model", False))
-        self.head_tracking = bool(_cfg_get(self.config, "live2d_head_tracking_enabled", True))
-        self.mutual_gaze_enabled = bool(_cfg_get(self.config, "live2d_mutual_gaze_enabled", False))
-        self.quality = str(_cfg_get(self.config, "live2d_quality", "balanced"))
-        scale = _clamp_int(_cfg_get(self.config, "live2d_scale", 100), 25, 500, 100)
+        self.fps = _clamp_int(self.config.get("fps", 120), 10, 240, 120)
+        self.opacity = _clamp_float(self.config.get("opacity", 1.0), 0.05, 1.0, 1.0)
+        self.vsync = bool(self.config.get("vsync", True))
+        self.drag_locked = bool(self.config.get("drag_locked", False))
+        self.hide = bool(self.config.get("hide_live2d_model", False))
+        self.head_tracking = bool(self.config.get("live2d_head_tracking_enabled", True))
+        self.mutual_gaze_enabled = bool(self.config.get("live2d_mutual_gaze_enabled", False))
+        self.quality = str(self.config.get("live2d_quality", "balanced"))
+        scale = _clamp_int(self.config.get("live2d_scale", 100), 25, 500, 100)
         self.width = int(round(LIVE2D_BASE_WIDTH * scale / 100.0))
         self.height = int(round(LIVE2D_BASE_HEIGHT * scale / 100.0))
-        self.x = int(self.entry.get("window_x", _cfg_get(self.config, "window_x", -1)))
-        self.y = int(self.entry.get("window_y", _cfg_get(self.config, "window_y", -1)))
+        self.x = int(self.entry.get("window_x", self.config.get("window_x", -1)))
+        self.y = int(self.entry.get("window_y", self.config.get("window_y", -1)))
         if self.x < 0 or self.y < 0:
             self.x, self.y = 100 + args.index * 36, 100
         self.window = None
@@ -785,8 +781,8 @@ class LightweightPet:
             self.height,
             self.fps,
             self.quality,
-            _clamp_int(_cfg_get(self.config, "live2d_hit_alpha_threshold", DEFAULT_HIT_ALPHA_THRESHOLD), 0, 255, DEFAULT_HIT_ALPHA_THRESHOLD),
-            _clamp_float(_cfg_get(self.config, "live2d_lip_sync_max_open", DEFAULT_LIP_SYNC_MAX_OPEN), 0.0, 1.0, DEFAULT_LIP_SYNC_MAX_OPEN),
+            _clamp_int(self.config.get("live2d_hit_alpha_threshold", DEFAULT_HIT_ALPHA_THRESHOLD), 0, 255, DEFAULT_HIT_ALPHA_THRESHOLD),
+            _clamp_float(self.config.get("live2d_lip_sync_max_open", DEFAULT_LIP_SYNC_MAX_OPEN), 0.0, 1.0, DEFAULT_LIP_SYNC_MAX_OPEN),
         )
         self.radial = RadialMenuClient(self._on_radial_action, self._on_lock_toggled)
         self.shared_events = SharedEventReader()

@@ -944,8 +944,6 @@ def main():
         elif line == "LAUNCH":
             settings_process_ref["launched"] = True
             launch_pet()
-        elif line == "EXIT":
-            quit_all()
 
     def clear_settings_process(process):
         if not isValid(process):

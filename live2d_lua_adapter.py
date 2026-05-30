@@ -61,13 +61,6 @@ def _store_cached_resource_bytes(path: str | Path, data: bytes):
             _RESOURCE_BYTE_CACHE_BYTES -= len(evicted)
 
 
-def clear_resource_byte_cache():
-    global _RESOURCE_BYTE_CACHE_BYTES
-    with _RESOURCE_BYTE_CACHE_LOCK:
-        _RESOURCE_BYTE_CACHE.clear()
-        _RESOURCE_BYTE_CACHE_BYTES = 0
-
-
 def prefetch_model_resource_bytes(paths):
     for path in paths:
         try:

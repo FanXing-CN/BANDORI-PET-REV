@@ -2,14 +2,6 @@ import ssl
 from settings_window.constants import *
 
 
-def _responses_api_url(api_url: str) -> str:
-    return responses_api_url(api_url)
-
-
-def _chat_completions_api_url(api_url: str) -> str:
-    return chat_completions_api_url(api_url)
-
-
 class UpdateCheckWorker(QThread):
     finished = Signal(object)
     error = Signal(str)
@@ -210,7 +202,7 @@ class TestConnectionWorker(QThread):
             self.error.emit(str(e))
 
     def _test_responses_request(self, urllib_request, json_module, headers: dict, ctx):
-        url = _responses_api_url(self._api_url)
+        url = responses_api_url(self._api_url)
         body = json_module.dumps({
             "model": self._model_id,
             "input": [{"role": "user", "content": [{"type": "input_text", "text": "Hi"}]}],
@@ -222,7 +214,7 @@ class TestConnectionWorker(QThread):
                 raise ValueError("Unexpected response format")
 
     def _test_chat_completions_request(self, urllib_request, json_module, headers: dict, ctx):
-        url = _chat_completions_api_url(self._api_url)
+        url = chat_completions_api_url(self._api_url)
         body_obj = {
             "model": self._model_id,
             "messages": [{"role": "user", "content": "Hi"}],

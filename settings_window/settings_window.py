@@ -3157,7 +3157,7 @@ class SettingsWindow(
         if not path:
             return
         ext = os.path.splitext(path)[1].lower()
-        if ext not in _AVATAR_EXTENSIONS:
+        if ext not in AVATAR_EXTENSIONS:
             return
         try:
             target_dir = self._avatar_storage_dir()
