@@ -23,7 +23,6 @@ from PySide6.QtNetwork import QLocalServer
 from shiboken6 import isValid
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
 
-from live2d_widget import Live2DWidget
 from model_manager import ModelManager
 from config_manager import ConfigManager
 from i18n_manager import set_language, detect_system_language, tr as _tr
@@ -66,7 +65,6 @@ def main():
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     if sys.platform != "darwin":
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseDesktopOpenGL)
-    Live2DWidget.configure_default_surface_format()
     icon_path = os.path.join(BASE_DIR, "logo.ico")
     ensure_windows_app_user_model_shortcut(APP_AUMID, "BandoriPet", icon_path)
     set_windows_app_user_model_id(APP_AUMID)

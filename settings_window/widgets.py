@@ -1,4 +1,135 @@
+import sys
+
+import OpenGL.GL as gl
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
+
 from settings_window.constants import *
+
+
+def configure_live2d_preview_surface_format():
+    from PySide6.QtGui import QSurfaceFormat
+
+    fmt = QSurfaceFormat()
+    fmt.setAlphaBufferSize(8)
+    fmt.setSamples(0)
+    fmt.setDepthBufferSize(0)
+    fmt.setStencilBufferSize(8)
+    fmt.setSwapInterval(1)
+    fmt.setVersion(2, 1)
+    fmt.setRenderableType(QSurfaceFormat.RenderableType.OpenGL)
+    fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
+    QSurfaceFormat.setDefaultFormat(fmt)
+
+
+class Live2DPreviewRenderWidget(QOpenGLWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._live2d = None
+        self._model = None
+        self._model_path = ""
+        self._pending_model = ""
+        self._quality_profile = "balanced"
+        self._clear_color = (1.0, 1.0, 1.0, 1.0)
+        self._initialized_gl = False
+        self._static_render_done = False
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        self.setAutoFillBackground(False)
+
+    def set_live2d_module(self, module):
+        self._live2d = module
+
+    def set_render_quality(self, profile: str):
+        from live2d_quality import normalize_live2d_quality
+        from platform_patch import set_live2d_texture_quality
+
+        profile = normalize_live2d_quality(profile)
+        if profile == self._quality_profile:
+            return
+        self._quality_profile = profile
+        set_live2d_texture_quality(profile)
+        if self._model and self._live2d:
+            self.makeCurrent()
+            try:
+                self._live2d._apply_texture_quality(self._model._renderer, profile.encode("utf-8"))
+            finally:
+                self.doneCurrent()
+            self._static_render_done = False
+            self.update()
+
+    def set_static_render(self, enabled: bool):
+        del enabled
+        self._static_render_done = False
+        self.update()
+
+    def set_clear_color(self, r: float, g: float, b: float, a: float):
+        self._clear_color = (r, g, b, a)
+        self._static_render_done = False
+        self.update()
+
+    def set_model_path(self, model_json_path: str):
+        self._pending_model = model_json_path
+        self._static_render_done = False
+        if self._initialized_gl:
+            self._load_model(model_json_path)
+            self.update()
+
+    def _load_model(self, model_json_path: str):
+        from live2d_quality import LIVE2D_QUALITY_PROFILES
+        from platform_patch import set_live2d_texture_quality
+        from zst_model_archive import clear_virtual_byte_cache, is_virtual_path, prefetch_virtual_model_resources
+
+        if not model_json_path or not self._live2d:
+            return
+        self.makeCurrent()
+        try:
+            virtual = is_virtual_path(model_json_path)
+            if virtual:
+                clear_virtual_byte_cache()
+                prefetch_virtual_model_resources(model_json_path)
+            set_live2d_texture_quality(self._quality_profile)
+            disable_precision = LIVE2D_QUALITY_PROFILES[self._quality_profile]["disable_precision"]
+            model = self._live2d.LAppModel()
+            try:
+                model.LoadModelJson(model_json_path, disable_precision=disable_precision)
+            finally:
+                if virtual:
+                    clear_virtual_byte_cache()
+            model.Resize(self.width(), self.height())
+            self._model = model
+            self._model_path = model_json_path
+        except Exception as e:
+            print(f"Failed to load Live2D preview model: {e}", file=sys.stderr)
+            self._model = None
+            self._model_path = ""
+        finally:
+            self.doneCurrent()
+
+    def initializeGL(self):
+        if self._live2d:
+            self._live2d.glInit()
+        gl.glDisable(gl.GL_DEPTH_TEST)
+        gl.glDisable(gl.GL_DITHER)
+        self._initialized_gl = True
+        if self._pending_model:
+            self._load_model(self._pending_model)
+        self.update()
+
+    def resizeGL(self, w: int, h: int):
+        gl.glViewport(0, 0, w, h)
+        if self._model:
+            self._model.Resize(w, h)
+            self._static_render_done = False
+
+    def paintGL(self):
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.defaultFramebufferObject())
+        gl.glEnable(gl.GL_BLEND)
+        gl.glBlendEquationSeparate(gl.GL_FUNC_ADD, gl.GL_FUNC_ADD)
+        gl.glClearColor(*self._clear_color)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_STENCIL_BUFFER_BIT)
+        if self._static_render_done or not self._model:
+            return
+        self._model.Draw()
+        self._static_render_done = True
 
 
 class FluentContextLineEdit(QLineEdit):
@@ -764,7 +895,6 @@ class CostumeItem(QPushButton):
 class Live2DPreviewBubble(QWidget):
     def __init__(self, live2d_module, quality_profile="balanced", parent=None):
         super().__init__(None)
-        from live2d_widget import Live2DWidget
 
         self._current_model_path = ""
         self.setWindowFlags(
@@ -780,7 +910,8 @@ class Live2DPreviewBubble(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(26, 10, 10, 10)
-        self._live2d_widget = Live2DWidget(self)
+        configure_live2d_preview_surface_format()
+        self._live2d_widget = Live2DPreviewRenderWidget(self)
         self._live2d_widget.set_live2d_module(live2d_module)
         self._live2d_widget.set_render_quality(quality_profile)
         self._live2d_widget.set_static_render(True)
